@@ -109,3 +109,79 @@ export type OutcomeAction =
   | 'mark_config_issue'
   | 'mark_timing_difference'
   | 'create_correction_je';
+
+// ── Validation Matrix (InvestOne → Eagle) ────────────────────
+export type ValidationRuleType =
+  | 'NAV_TO_LEDGER'
+  | 'LEDGER_BS_TO_INCST'
+  | 'LEDGER_TF_TO_CLASS'
+  | 'POSITION_TO_LOT'
+  | 'LEDGER_TO_SUBLEDGER'
+  | 'BASIS_LOT_CHECK';
+
+export type ValidationStatus = 'passed' | 'failed' | 'warning' | 'running' | 'pending' | 'skipped';
+
+export interface ValidationSide {
+  source: string;
+  keys: string[];
+  displayFields: string[];
+  compareFields: string[];
+  filter?: string;
+}
+
+export interface ValidationRule {
+  id: string;
+  name: string;
+  ruleType: ValidationRuleType;
+  section: string;
+  lhs: ValidationSide;
+  rhs: ValidationSide;
+  toleranceAbsolute?: number;
+}
+
+export interface ValidationResult {
+  ruleId: string;
+  ruleName: string;
+  ruleType: ValidationRuleType;
+  section: string;
+  account: string;
+  valuationDate: string;
+  status: ValidationStatus;
+  lhsRowCount: number;
+  rhsRowCount: number;
+  matchedCount: number;
+  breakCount: number;
+  totalVariance: number;
+  maxVariance: number;
+  executedAt: string;
+  durationMs: number;
+}
+
+export type DerivedRollupCategory =
+  | 'CAPITAL_SUBSCRIPTIONS'
+  | 'DISTRIBUTION'
+  | 'FORWARDS'
+  | 'REPO'
+  | 'SECURITIES'
+  | 'LEDGER_LOAD'
+  | 'FUTURES_INCOME_UNREALIZED';
+
+export interface DerivedRollupRule {
+  id: string;
+  name: string;
+  category: DerivedRollupCategory;
+  sourceTable: string;
+  ledgerAccount: string;
+  dataExpression: string;
+  filter?: string;
+}
+
+export interface ValidationSummary {
+  totalRules: number;
+  passed: number;
+  failed: number;
+  warnings: number;
+  pending: number;
+  overallMatchRate: number;
+  totalVariance: number;
+}

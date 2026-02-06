@@ -27,6 +27,7 @@ import NotificationsIcon from '@mui/icons-material/Notifications';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import RuleIcon from '@mui/icons-material/Rule';
 
 const DRAWER_WIDTH = 260;
 const DRAWER_COLLAPSED = 72;
@@ -41,6 +42,7 @@ const navItems: NavItem[] = [
   { label: 'Control Center', icon: <DashboardIcon />, path: '/' },
   { label: 'Break Explorer', icon: <TableChartIcon />, path: '/breaks' },
   { label: 'Investigation', icon: <SearchIcon />, path: '/investigate' },
+  { label: 'Validation Matrix', icon: <RuleIcon />, path: '/validation' },
 ];
 
 const MainLayout: React.FC = () => {

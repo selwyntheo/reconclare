@@ -7,6 +7,7 @@ import MainLayout from './layouts/MainLayout';
 import ControlCenter from './pages/ControlCenter/ControlCenter';
 import BreakExplorer from './pages/BreakExplorer/BreakExplorer';
 import InvestigationWorkspace from './pages/InvestigationWorkspace/InvestigationWorkspace';
+import ValidationMatrix from './pages/ValidationMatrix/ValidationMatrix';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
             <Route index element={<ControlCenter />} />
             <Route path="breaks" element={<BreakExplorer />} />
             <Route path="investigate" element={<InvestigationWorkspace />} />
+            <Route path="validation" element={<ValidationMatrix />} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -46,6 +46,8 @@ import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import FormatListNumberedIcon from '@mui/icons-material/FormatListNumbered';
 import ScienceIcon from '@mui/icons-material/Science';
 import HistoryIcon from '@mui/icons-material/History';
+import RuleIcon from '@mui/icons-material/Rule';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import {
   breaks,
   sideBySideData,
@@ -54,7 +56,11 @@ import {
   evidenceLog,
   lineageNodes,
 } from '../../data/mockData';
-import { HypothesisTest, SideBySideRow } from '../../types';
+import {
+  validationRules,
+  validationResults,
+} from '../../data/validationData';
+import { HypothesisTest, SideBySideRow, ValidationResult, ValidationStatus } from '../../types';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -288,6 +294,7 @@ const InvestigationWorkspace: React.FC = () => {
           <Tab icon={<FormatListNumberedIcon />} iconPosition="start" label="Candidate Set" />
           <Tab icon={<ScienceIcon />} iconPosition="start" label="Hypothesis Tests" />
           <Tab icon={<HistoryIcon />} iconPosition="start" label="Evidence Log" />
+          <Tab icon={<RuleIcon />} iconPosition="start" label="Validation Rules" />
         </Tabs>
 
         <Box sx={{ p: 2 }}>
@@ -556,6 +563,11 @@ const InvestigationWorkspace: React.FC = () => {
               ))}
             </Stack>
           </TabPanel>
+
+          {/* ── Tab 5: Validation Rules ─────────────── */}
+          <TabPanel value={tabValue} index={5}>
+            <ValidationRulesPanel fund={brk.fund} theme={theme} />
+          </TabPanel>
         </Box>
       </Card>
 
@@ -691,6 +703,132 @@ const InvestigationWorkspace: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+    </Box>
+  );
+};
+
+// ── Validation Rules Panel (Tab 5) ───────────────────────────
+
+const valStatusConfig: Record<ValidationStatus, { color: 'success' | 'error' | 'warning' | 'info' | 'default'; icon: React.ReactNode; label: string }> = {
+  passed: { color: 'success', icon: <CheckCircleIcon fontSize="small" />, label: 'Passed' },
+  failed: { color: 'error', icon: <CancelIcon fontSize="small" />, label: 'Failed' },
+  warning: { color: 'warning', icon: <WarningAmberIcon fontSize="small" />, label: 'Warning' },
+  running: { color: 'info', icon: <HourglassEmptyIcon fontSize="small" />, label: 'Running' },
+  pending: { color: 'default', icon: <HourglassEmptyIcon fontSize="small" />, label: 'Pending' },
+  skipped: { color: 'default', icon: <HourglassEmptyIcon fontSize="small" />, label: 'Skipped' },
+};
+
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(value);
+
+const ValidationRulesPanel: React.FC<{ fund: string; theme: any }> = ({ fund, theme }) => {
+  const fundResults = validationResults.filter((r) => r.account === fund);
+  const passCount = fundResults.filter((r) => r.status === 'passed').length;
+  const failCount = fundResults.filter((r) => r.status === 'failed').length;
+  const warnCount = fundResults.filter((r) => r.status === 'warning').length;
+
+  return (
+    <Box>
+      <Typography variant="subtitle2" sx={{ mb: 2 }}>
+        InvestOne → Eagle validation checks for <strong>{fund}</strong> — showing which rules triggered breaks relevant to this investigation
+      </Typography>
+
+      <Stack direction="row" spacing={1.5} sx={{ mb: 2.5 }}>
+        <Chip icon={<CheckCircleIcon />} label={`${passCount} passed`} size="small" color="success" variant="outlined" />
+        {failCount > 0 && <Chip icon={<CancelIcon />} label={`${failCount} failed`} size="small" color="error" />}
+        {warnCount > 0 && <Chip icon={<WarningAmberIcon />} label={`${warnCount} warnings`} size="small" color="warning" variant="outlined" />}
+      </Stack>
+
+      <Stack spacing={1.5}>
+        {validationRules.map((rule) => {
+          const result = fundResults.find((r) => r.ruleId === rule.id);
+          const status = result?.status || 'pending';
+          const cfg = valStatusConfig[status];
+          const matchRate = result && result.lhsRowCount > 0
+            ? (result.matchedCount / result.lhsRowCount) * 100
+            : 100;
+
+          return (
+            <Paper
+              key={rule.id}
+              variant="outlined"
+              sx={{
+                p: 2,
+                borderRadius: 2,
+                borderLeft: `4px solid ${
+                  status === 'failed'
+                    ? theme.palette.error.main
+                    : status === 'warning'
+                    ? theme.palette.warning.main
+                    : theme.palette.success.main
+                }`,
+                bgcolor: status === 'failed' ? alpha(theme.palette.error.main, 0.02) : 'transparent',
+              }}
+            >
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                  <Chip label={rule.id} size="small" color="primary" sx={{ fontWeight: 700, fontSize: '0.7rem' }} />
+                  <Box>
+                    <Typography variant="body2" fontWeight={600}>{rule.name}</Typography>
+                    <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
+                      <Typography variant="caption" color="text.secondary">
+                        {rule.lhs.source} vs {rule.rhs.source}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Keys: {rule.lhs.keys.join(', ')}
+                      </Typography>
+                    </Stack>
+                  </Box>
+                </Stack>
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                  {result && (
+                    <>
+                      <Chip
+                        label={`${matchRate.toFixed(1)}%`}
+                        size="small"
+                        color={matchRate >= 99 ? 'success' : matchRate >= 95 ? 'warning' : 'error'}
+                        sx={{ fontWeight: 600, fontSize: '0.7rem' }}
+                      />
+                      {result.breakCount > 0 && (
+                        <Chip
+                          label={`${result.breakCount} break(s) · ${formatCurrency(result.totalVariance)}`}
+                          size="small"
+                          color="error"
+                          variant="outlined"
+                          sx={{ fontSize: '0.7rem' }}
+                        />
+                      )}
+                    </>
+                  )}
+                  <Stack direction="row" spacing={0.5} alignItems="center">
+                    {cfg.icon}
+                    <Chip label={cfg.label} size="small" color={cfg.color} sx={{ fontWeight: 600, fontSize: '0.7rem' }} />
+                  </Stack>
+                </Stack>
+              </Stack>
+
+              {rule.lhs.filter && (
+                <Stack direction="row" spacing={2} sx={{ mt: 1.5, pl: 1 }}>
+                  <Box>
+                    <Typography variant="caption" color="primary.main" fontWeight={600}>LHS Filter:</Typography>
+                    <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '0.7rem', ml: 0.5 }}>
+                      {rule.lhs.filter}
+                    </Typography>
+                  </Box>
+                  {rule.rhs.filter && (
+                    <Box>
+                      <Typography variant="caption" color="secondary.main" fontWeight={600}>RHS Filter:</Typography>
+                      <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '0.7rem', ml: 0.5 }}>
+                        {rule.rhs.filter}
+                      </Typography>
+                    </Box>
+                  )}
+                </Stack>
+              )}
+            </Paper>
+          );
+        })}
+      </Stack>
     </Box>
   );
 };

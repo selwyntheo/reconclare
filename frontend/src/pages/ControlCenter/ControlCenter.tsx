@@ -24,6 +24,8 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CloseIcon from '@mui/icons-material/Close';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import NewReleasesIcon from '@mui/icons-material/NewReleases';
+import RuleIcon from '@mui/icons-material/Rule';
+import CancelIcon from '@mui/icons-material/Cancel';
 import {
   BarChart,
   Bar,
@@ -41,6 +43,7 @@ import {
   configDriftAlerts,
   dashboardStats,
 } from '../../data/mockData';
+import { validationSummary, validationResults } from '../../data/validationData';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
@@ -254,6 +257,105 @@ const ControlCenter: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
+
+      {/* ── Validation Health ─────────────────────────── */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+            <RuleIcon color="primary" />
+            <Typography variant="h6">InvestOne → Eagle Validation Health</Typography>
+            <Chip
+              label={`${validationSummary.overallMatchRate}% match`}
+              size="small"
+              color={validationSummary.overallMatchRate >= 99 ? 'success' : validationSummary.overallMatchRate >= 95 ? 'warning' : 'error'}
+              sx={{ fontWeight: 700, ml: 1 }}
+            />
+          </Stack>
+          <Grid container spacing={2}>
+            {[
+              { label: 'NAV to Ledger', id: 'VAL-1.1' },
+              { label: 'Ledger BS to INCST', id: 'VAL-1.2' },
+              { label: 'Ledger TF to Class', id: 'VAL-1.3' },
+              { label: 'Position to Lot', id: 'VAL-1.4' },
+              { label: 'Ledger to Subledger', id: 'VAL-1.5' },
+              { label: 'Basis Lot Check', id: 'VAL-1.6' },
+            ].map((rule) => {
+              const ruleResults = validationResults.filter((r) => r.ruleId === rule.id);
+              const passed = ruleResults.filter((r) => r.status === 'passed').length;
+              const failed = ruleResults.filter((r) => r.status === 'failed').length;
+              const warned = ruleResults.filter((r) => r.status === 'warning').length;
+              const total = ruleResults.length;
+              const matchRate = total > 0
+                ? ruleResults.reduce((s, r) => s + r.matchedCount, 0) / Math.max(ruleResults.reduce((s, r) => s + r.lhsRowCount, 0), 1) * 100
+                : 100;
+              return (
+                <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }} key={rule.id}>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 2,
+                      borderRadius: 2,
+                      borderColor: failed > 0
+                        ? alpha(theme.palette.error.main, 0.4)
+                        : warned > 0
+                        ? alpha(theme.palette.warning.main, 0.4)
+                        : alpha(theme.palette.success.main, 0.4),
+                      bgcolor: failed > 0
+                        ? alpha(theme.palette.error.main, 0.03)
+                        : warned > 0
+                        ? alpha(theme.palette.warning.main, 0.03)
+                        : alpha(theme.palette.success.main, 0.03),
+                    }}
+                  >
+                    <Typography variant="body2" fontWeight={600} noWrap sx={{ mb: 0.5 }}>
+                      {rule.label}
+                    </Typography>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Chip
+                        label={`${matchRate.toFixed(1)}%`}
+                        size="small"
+                        color={matchRate >= 99 ? 'success' : matchRate >= 95 ? 'warning' : 'error'}
+                        sx={{ fontWeight: 700 }}
+                      />
+                      <Stack direction="row" spacing={0.5}>
+                        {failed > 0 && (
+                          <Tooltip title={`${failed} fund(s) failed`}>
+                            <Chip icon={<CancelIcon />} label={failed} size="small" color="error" sx={{ fontSize: '0.7rem' }} />
+                          </Tooltip>
+                        )}
+                        {warned > 0 && (
+                          <Tooltip title={`${warned} fund(s) warning`}>
+                            <Chip icon={<WarningAmberIcon />} label={warned} size="small" color="warning" variant="outlined" sx={{ fontSize: '0.7rem' }} />
+                          </Tooltip>
+                        )}
+                        {passed > 0 && failed === 0 && warned === 0 && (
+                          <Tooltip title={`${passed} fund(s) passed`}>
+                            <Chip icon={<CheckCircleOutlineIcon />} label={passed} size="small" color="success" variant="outlined" sx={{ fontSize: '0.7rem' }} />
+                          </Tooltip>
+                        )}
+                      </Stack>
+                    </Stack>
+                    <LinearProgress
+                      variant="determinate"
+                      value={matchRate}
+                      sx={{
+                        mt: 1,
+                        height: 4,
+                        borderRadius: 2,
+                        bgcolor: alpha(theme.palette.primary.main, 0.08),
+                        '& .MuiLinearProgress-bar': {
+                          borderRadius: 2,
+                          bgcolor: matchRate >= 99 ? 'success.main' : matchRate >= 95 ? 'warning.main' : 'error.main',
+                        },
+                      }}
+                    />
+                  </Paper>
+                </Grid>
+              );
+            })}
+          </Grid>
+        </CardContent>
+      </Card>
 
       {/* ── Break Pattern Deltas ────────────────────── */}
       <Card>
