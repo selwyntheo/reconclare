@@ -20,14 +20,12 @@ import {
   alpha,
 } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
-import TableChartIcon from '@mui/icons-material/TableChart';
-import SearchIcon from '@mui/icons-material/Search';
+import RateReviewIcon from '@mui/icons-material/RateReview';
 import MenuIcon from '@mui/icons-material/Menu';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
-import RuleIcon from '@mui/icons-material/Rule';
 
 const DRAWER_WIDTH = 260;
 const DRAWER_COLLAPSED = 72;
@@ -39,10 +37,8 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { label: 'Control Center', icon: <DashboardIcon />, path: '/' },
-  { label: 'Break Explorer', icon: <TableChartIcon />, path: '/breaks' },
-  { label: 'Investigation', icon: <SearchIcon />, path: '/investigate' },
-  { label: 'Validation Matrix', icon: <RuleIcon />, path: '/validation' },
+  { label: 'Event Dashboard', icon: <DashboardIcon />, path: '/' },
+  { label: 'Human Review', icon: <RateReviewIcon />, path: '/review' },
 ];
 
 const MainLayout: React.FC = () => {

@@ -3,12 +3,9 @@ from typing import Optional
 
 
 class Settings(BaseSettings):
-    # PostgreSQL (Canonical Model / CPU Tasks)
-    POSTGRES_HOST: str = "localhost"
-    POSTGRES_PORT: int = 5432
-    POSTGRES_DB: str = "recon_ai"
-    POSTGRES_USER: str = "recon_ai"
-    POSTGRES_PASSWORD: str = "changeme"
+    # MongoDB (Canonical Model + Reconciliation Data)
+    MONGODB_URI: str = "mongodb://localhost:27017"
+    MONGODB_DB: str = "recon_ai"
 
     # Neo4j (GraphRAG)
     NEO4J_URI: str = "bolt://localhost:7687"
@@ -27,14 +24,6 @@ class Settings(BaseSettings):
     CHROMA_PERSIST_DIR: str = "./data/chroma"
     CHROMA_COLLECTION: str = "recon_ai_breaks"
 
-    # Kafka (Event Bus)
-    KAFKA_BOOTSTRAP_SERVERS: str = "localhost:9092"
-    KAFKA_BREAK_ALERT_TOPIC: str = "recon.break.alerts"
-    KAFKA_AGENT_EVENTS_TOPIC: str = "recon.agent.events"
-
-    # Redis (Caching)
-    REDIS_URL: str = "redis://localhost:6379/0"
-
     # Agent Configuration
     MATERIALITY_THRESHOLD_ABSOLUTE: float = 0.005  # $0.005/share
     MATERIALITY_THRESHOLD_RELATIVE: float = 0.0001  # 0.01%
@@ -42,19 +31,10 @@ class Settings(BaseSettings):
     CRITICAL_BREAK_THRESHOLD: float = 0.0005  # 0.05% of NAV
     MAX_DRILL_DOWN_DEPTH: int = 4  # L0 through L3
 
-    @property
-    def postgres_url(self) -> str:
-        return (
-            f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
-            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
-        )
-
-    @property
-    def postgres_async_url(self) -> str:
-        return (
-            f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
-            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
-        )
+    # API
+    API_HOST: str = "0.0.0.0"
+    API_PORT: int = 8000
+    CORS_ORIGINS: str = "*"
 
     class Config:
         env_file = ".env"

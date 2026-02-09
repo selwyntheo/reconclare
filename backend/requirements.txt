@@ -4,10 +4,9 @@ python-dotenv==1.0.1
 pydantic==2.6.1
 pydantic-settings==2.1.0
 
-# Database - PostgreSQL (Canonical Model / CPU Tasks)
-sqlalchemy==2.0.25
-psycopg2-binary==2.9.9
-alembic==1.13.1
+# Database - MongoDB (Canonical Model + Reconciliation Data)
+pymongo==4.6.1
+motor==3.3.2
 
 # Graph Database - Neo4j (GraphRAG)
 neo4j==5.19.0
@@ -19,6 +18,7 @@ langchain-community==0.0.24
 langchain-core==0.1.27
 langgraph==0.0.26
 langchain-openai==0.0.8
+langchain-anthropic==0.1.1
 
 # GraphRAG
 networkx==3.2.1

@@ -4,10 +4,11 @@ import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import theme from './theme/theme';
 import MainLayout from './layouts/MainLayout';
-import ControlCenter from './pages/ControlCenter/ControlCenter';
-import BreakExplorer from './pages/BreakExplorer/BreakExplorer';
-import InvestigationWorkspace from './pages/InvestigationWorkspace/InvestigationWorkspace';
-import ValidationMatrix from './pages/ValidationMatrix/ValidationMatrix';
+import EventDashboard from './pages/EventDashboard/EventDashboard';
+import EventDetail from './pages/EventDetail/EventDetail';
+import ValidationRunView from './pages/ValidationRunView/ValidationRunView';
+import FundBreakDetail from './pages/FundBreakDetail/FundBreakDetail';
+import HumanReview from './pages/HumanReview/HumanReview';
 
 function App() {
   return (
@@ -16,10 +17,11 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<MainLayout />}>
-            <Route index element={<ControlCenter />} />
-            <Route path="breaks" element={<BreakExplorer />} />
-            <Route path="investigate" element={<InvestigationWorkspace />} />
-            <Route path="validation" element={<ValidationMatrix />} />
+            <Route index element={<EventDashboard />} />
+            <Route path="events/:eventId" element={<EventDetail />} />
+            <Route path="events/:eventId/runs/:runId" element={<ValidationRunView />} />
+            <Route path="events/:eventId/funds/:fundAccount" element={<FundBreakDetail />} />
+            <Route path="review" element={<HumanReview />} />
           </Route>
         </Routes>
       </BrowserRouter>
