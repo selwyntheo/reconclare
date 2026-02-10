@@ -2,6 +2,14 @@
  * API Service Layer — RECON-AI Control Center
  * Replaces mock data with real backend API calls.
  */
+import {
+  LedgerSubledgerSummaryResponse,
+  LedgerDetailResponse,
+  PositionTotalsResponse,
+  UnsettledTotalsResponse,
+  LedgerCategory,
+  GLCategoryMapping,
+} from '../types';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
@@ -122,15 +130,6 @@ export async function fetchFundPositions(fundAccount: string, valuationDt?: stri
 }
 
 // ── Ledger to Subledger Validation ──────────────────────────
-
-import {
-  LedgerSubledgerSummaryResponse,
-  LedgerDetailResponse,
-  PositionTotalsResponse,
-  UnsettledTotalsResponse,
-  LedgerCategory,
-  GLCategoryMapping,
-} from '../types';
 
 export async function fetchLedgerSubledgerSummary(
   fundAccount: string,
