@@ -9,6 +9,7 @@ import EventDetail from './pages/EventDetail/EventDetail';
 import ValidationRunView from './pages/ValidationRunView/ValidationRunView';
 import FundBreakDetail from './pages/FundBreakDetail/FundBreakDetail';
 import HumanReview from './pages/HumanReview/HumanReview';
+import LedgerMapping from './pages/LedgerMapping/LedgerMapping';
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
             <Route path="events/:eventId/runs/:runId" element={<ValidationRunView />} />
             <Route path="events/:eventId/funds/:fundAccount" element={<FundBreakDetail />} />
             <Route path="review" element={<HumanReview />} />
+            <Route path="ledger-mapping" element={<LedgerMapping />} />
           </Route>
         </Routes>
       </BrowserRouter>

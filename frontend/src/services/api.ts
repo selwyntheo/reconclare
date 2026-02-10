@@ -199,6 +199,35 @@ export async function fetchGLCategoryMappings(
   return fetchJSON<GLCategoryMapping[]>(`/api/reference/gl-category-mappings${params}`);
 }
 
+export async function createGLCategoryMapping(mapping: Omit<GLCategoryMapping, '_id'>): Promise<{ message: string; mapping: GLCategoryMapping }> {
+  return fetchJSON('/api/reference/gl-category-mappings', {
+    method: 'POST',
+    body: JSON.stringify(mapping),
+  });
+}
+
+export async function updateGLCategoryMapping(
+  glAccountNumber: string,
+  mapping: Partial<GLCategoryMapping>,
+  chartOfAccounts: string = 'investone mufg'
+): Promise<{ message: string }> {
+  const params = `?chart_of_accounts=${encodeURIComponent(chartOfAccounts)}`;
+  return fetchJSON(`/api/reference/gl-category-mappings/${encodeURIComponent(glAccountNumber)}${params}`, {
+    method: 'PUT',
+    body: JSON.stringify(mapping),
+  });
+}
+
+export async function deleteGLCategoryMapping(
+  glAccountNumber: string,
+  chartOfAccounts: string = 'investone mufg'
+): Promise<{ message: string }> {
+  const params = `?chart_of_accounts=${encodeURIComponent(chartOfAccounts)}`;
+  return fetchJSON(`/api/reference/gl-category-mappings/${encodeURIComponent(glAccountNumber)}${params}`, {
+    method: 'DELETE',
+  });
+}
+
 // ── Health Check ────────────────────────────────────────────
 
 export async function healthCheck() {

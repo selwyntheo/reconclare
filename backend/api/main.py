@@ -509,6 +509,59 @@ async def get_gl_category_mappings(chart_of_accounts: Optional[str] = None):
     return mappings
 
 
+@app.post("/api/reference/gl-category-mappings")
+async def create_gl_category_mapping(mapping: dict):
+    """Create a new GL account to category mapping."""
+    db = get_async_db()
+
+    # Validate required fields
+    required = ["chartOfAccounts", "glAccountNumber", "glAccountDescription", "ledgerSection", "bsIncst", "conversionCategory"]
+    for field in required:
+        if field not in mapping:
+            raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+
+    # Check for duplicate
+    existing = await db["refGLCategoryMapping"].find_one({
+        "chartOfAccounts": mapping["chartOfAccounts"],
+        "glAccountNumber": mapping["glAccountNumber"],
+    })
+    if existing:
+        raise HTTPException(status_code=409, detail="Mapping already exists for this GL account")
+
+    await db["refGLCategoryMapping"].insert_one(mapping)
+    return {"message": "Mapping created", "mapping": mapping}
+
+
+@app.put("/api/reference/gl-category-mappings/{gl_account_number}")
+async def update_gl_category_mapping(gl_account_number: str, mapping: dict, chart_of_accounts: str = "investone mufg"):
+    """Update an existing GL account to category mapping."""
+    db = get_async_db()
+
+    result = await db["refGLCategoryMapping"].update_one(
+        {"chartOfAccounts": chart_of_accounts, "glAccountNumber": gl_account_number},
+        {"$set": mapping}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Mapping not found")
+
+    return {"message": "Mapping updated"}
+
+
+@app.delete("/api/reference/gl-category-mappings/{gl_account_number}")
+async def delete_gl_category_mapping(gl_account_number: str, chart_of_accounts: str = "investone mufg"):
+    """Delete a GL account to category mapping."""
+    db = get_async_db()
+
+    result = await db["refGLCategoryMapping"].delete_one({
+        "chartOfAccounts": chart_of_accounts,
+        "glAccountNumber": gl_account_number,
+    })
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Mapping not found")
+
+    return {"message": "Mapping deleted"}
+
+
 # ══════════════════════════════════════════════════════════════
 # Health Check
 # ══════════════════════════════════════════════════════════════
