@@ -224,3 +224,134 @@ export interface ActivityFeedItem {
   userId?: string;
   userName?: string;
 }
+
+// ══════════════════════════════════════════════════════════════
+// LEDGER TO SUBLEDGER VALIDATION TYPES (per spec ledger_subledger.md)
+// ══════════════════════════════════════════════════════════════
+
+// ── Security Type Codes (Appendix B) ─────────────────────────
+
+export type SecurityTypeCode = 'CA' | 'CU' | 'FT' | 'MF' | 'RP' | 'S' | 'TI';
+
+// ── Ledger Category Reference ────────────────────────────────
+
+export interface LedgerCategory {
+  categoryName: string;
+  subledgerSupported: boolean;
+  primaryDataSource: string | null;
+  description: string | null;
+  displayOrder: number;
+}
+
+// ── GL Account to Category Mapping ───────────────────────────
+
+export interface GLCategoryMapping {
+  chartOfAccounts: string;
+  glAccountNumber: string;
+  glAccountDescription: string;
+  ledgerSection: string;
+  bsIncst: 'BS' | 'INCST';
+  conversionCategory: string;
+}
+
+// ── Transaction Code to Category Mapping ─────────────────────
+
+export interface TransCodeCategoryMapping {
+  transCode: string;
+  conversionCategory: string;
+  fieldUsed: string;
+  description: string | null;
+}
+
+// ── Ledger to Subledger Summary Grid (Section 2.1) ───────────
+
+export interface LedgerSubledgerSummaryRow {
+  account: string;
+  category: string;
+  subledgerSupported: boolean;
+  ledger: number;
+  subLedger: number | null;
+  variance: number;
+}
+
+export interface LedgerSubledgerSummaryResponse {
+  rows: LedgerSubledgerSummaryRow[];
+  totals: {
+    ledger: number;
+    subLedger: number;
+    variance: number;
+  };
+}
+
+// ── Ledger Detail Drill-Down (Section 4.2) ───────────────────
+
+export interface LedgerDetailRow {
+  account: string;
+  bsIncst: 'BS' | 'INCST';
+  category: string;
+  glAccountNumber: string;
+  glAccountDescription: string;
+  endingBalance: number;
+}
+
+export interface LedgerDetailResponse {
+  rows: LedgerDetailRow[];
+  total: number;
+}
+
+// ── Position Totals Drill-Down (Section 5) ───────────────────
+
+export interface PositionTotalRow {
+  account: string;
+  category: string;
+  secType: SecurityTypeCode | string;
+  issueDescription: string | null;
+  assetId?: string;
+  bookValue: number | null;
+  unrealized: number | null;
+  netIncome: number | null;
+  dailyVarMargin: number | null;
+  varMarginUrgl: number | null;
+  total: number;
+  isSubtotal?: boolean;
+  isGrandTotal?: boolean;
+}
+
+export interface PositionTotalsResponse {
+  rows: PositionTotalRow[];
+  grandTotal: number;
+}
+
+// ── Unsettled Totals Drill-Down (Section 7) ──────────────────
+
+export interface UnsettledTotalRow {
+  account: string;
+  category: string;
+  transCode: string;
+  amount: number;
+  isSubtotal?: boolean;
+  isGrandTotal?: boolean;
+}
+
+export interface UnsettledTotalsResponse {
+  rows: UnsettledTotalRow[];
+  grandTotal: number;
+}
+
+// ── Derived Subledger Rollup (Section 9) ─────────────────────
+
+export interface DerivedSubledgerValue {
+  account: string;
+  category: string;
+  positionValue: number;
+  transactionValue: number;
+  totalValue: number;
+}
+
+// ── Drill-Down Selection State ───────────────────────────────
+
+export interface LedgerSubledgerDrillDownSelection {
+  account: string;
+  category: string;
+  subledgerSupported: boolean;
+}

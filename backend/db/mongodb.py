@@ -65,6 +65,10 @@ COLLECTIONS = {
     "refTransCode": "refTransCode",
     "refLedger": "refLedger",
     "refFund": "refFund",
+    # Ledger to Subledger Reference Tables
+    "refLedgerCategory": "refLedgerCategory",
+    "refGLCategoryMapping": "refGLCategoryMapping",
+    "refTransCodeCategoryMapping": "refTransCodeCategoryMapping",
     # Position and Holdings Tables
     "dataSubLedgerPosition": "dataSubLedgerPosition",
     # Subledger Tables

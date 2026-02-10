@@ -121,6 +121,85 @@ export async function fetchFundPositions(fundAccount: string, valuationDt?: stri
   return fetchJSON<any[]>(`/api/funds/${fundAccount}/positions${params}`);
 }
 
+// ── Ledger to Subledger Validation ──────────────────────────
+
+import {
+  LedgerSubledgerSummaryResponse,
+  LedgerDetailResponse,
+  PositionTotalsResponse,
+  UnsettledTotalsResponse,
+  LedgerCategory,
+  GLCategoryMapping,
+} from '../types';
+
+export async function fetchLedgerSubledgerSummary(
+  fundAccount: string,
+  valuationDt?: string,
+  userBank: string = 'CPU'
+): Promise<LedgerSubledgerSummaryResponse> {
+  const params = new URLSearchParams();
+  if (valuationDt) params.set('valuation_dt', valuationDt);
+  params.set('user_bank', userBank);
+  const qs = params.toString();
+  return fetchJSON<LedgerSubledgerSummaryResponse>(
+    `/api/funds/${fundAccount}/ledger-subledger${qs ? `?${qs}` : ''}`
+  );
+}
+
+export async function fetchLedgerDetail(
+  fundAccount: string,
+  category: string,
+  valuationDt?: string,
+  userBank: string = 'CPU'
+): Promise<LedgerDetailResponse> {
+  const params = new URLSearchParams();
+  params.set('category', category);
+  if (valuationDt) params.set('valuation_dt', valuationDt);
+  params.set('user_bank', userBank);
+  return fetchJSON<LedgerDetailResponse>(
+    `/api/funds/${fundAccount}/ledger-detail?${params.toString()}`
+  );
+}
+
+export async function fetchPositionTotals(
+  fundAccount: string,
+  category: string,
+  valuationDt?: string,
+  userBank: string = 'CPU'
+): Promise<PositionTotalsResponse> {
+  const params = new URLSearchParams();
+  params.set('category', category);
+  if (valuationDt) params.set('valuation_dt', valuationDt);
+  params.set('user_bank', userBank);
+  return fetchJSON<PositionTotalsResponse>(
+    `/api/funds/${fundAccount}/position-totals?${params.toString()}`
+  );
+}
+
+export async function fetchUnsettledTotals(
+  fundAccount: string,
+  category: string,
+  valuationDt?: string
+): Promise<UnsettledTotalsResponse> {
+  const params = new URLSearchParams();
+  params.set('category', category);
+  if (valuationDt) params.set('valuation_dt', valuationDt);
+  return fetchJSON<UnsettledTotalsResponse>(
+    `/api/funds/${fundAccount}/unsettled-totals?${params.toString()}`
+  );
+}
+
+export async function fetchLedgerCategories(): Promise<LedgerCategory[]> {
+  return fetchJSON<LedgerCategory[]>('/api/reference/ledger-categories');
+}
+
+export async function fetchGLCategoryMappings(
+  chartOfAccounts?: string
+): Promise<GLCategoryMapping[]> {
+  const params = chartOfAccounts ? `?chart_of_accounts=${chartOfAccounts}` : '';
+  return fetchJSON<GLCategoryMapping[]>(`/api/reference/gl-category-mappings${params}`);
+}
+
 // ── Health Check ────────────────────────────────────────────
 
 export async function healthCheck() {

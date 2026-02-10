@@ -214,3 +214,110 @@ class RefFund(Base, AuditMixin):
     __table_args__ = (
         {"comment": "Fund/Portfolio master reference data"},
     )
+
+
+class RefLedgerCategory(Base, AuditMixin):
+    """
+    refLedgerCategory - Ledger conversion category definitions with subledger support flags.
+    Defines the 17 categories used for Ledger to Subledger validation.
+    Grain: One row per category
+    """
+    __tablename__ = "ref_ledger_category"
+
+    category_name: Mapped[str] = mapped_column(
+        String(50), primary_key=True,
+        comment="Category name (e.g., Cash, Investment Cost, Holdings Unrealized)"
+    )
+    subledger_supported: Mapped[bool] = mapped_column(
+        nullable=False, default=False,
+        comment="Whether this category has a derived subledger rollup (Y/N)"
+    )
+    primary_data_source: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True,
+        comment="Primary data source for subledger (Position, Unsettled Trans, etc.)"
+    )
+    description: Mapped[Optional[str]] = mapped_column(
+        String(500), nullable=True,
+        comment="Description of what this category represents"
+    )
+    display_order: Mapped[int] = mapped_column(
+        nullable=False, default=0,
+        comment="Display order in the summary grid"
+    )
+
+    __table_args__ = (
+        Index("ix_ref_ledger_category_supported", "subledger_supported"),
+        {"comment": "Ledger conversion category definitions"},
+    )
+
+
+class RefGLCategoryMapping(Base, AuditMixin):
+    """
+    refGLCategoryMapping - Maps GL account numbers to ledger conversion categories.
+    Enables grouping of GL accounts into meaningful reconciliation buckets.
+    Grain: One row per GL account per chart of accounts
+    """
+    __tablename__ = "ref_gl_category_mapping"
+
+    chart_of_accounts: Mapped[str] = mapped_column(
+        String(50), primary_key=True,
+        comment="Chart of accounts identifier (e.g., 'investone mufg')"
+    )
+    gl_account_number: Mapped[str] = mapped_column(
+        String(50), primary_key=True,
+        comment="GL account number/code"
+    )
+    gl_account_description: Mapped[str] = mapped_column(
+        String(255), nullable=False,
+        comment="GL account description"
+    )
+    ledger_section: Mapped[str] = mapped_column(
+        String(50), nullable=False,
+        comment="Ledger section (ASSETS, LIABILITIES, EQUITY, INCOME, EXPENSE)"
+    )
+    bs_incst: Mapped[str] = mapped_column(
+        String(10), nullable=False,
+        comment="Balance Sheet or Income Statement indicator (BS/INCST)"
+    )
+    conversion_category: Mapped[str] = mapped_column(
+        String(50), nullable=False,
+        comment="Ledger conversion category for reconciliation"
+    )
+
+    __table_args__ = (
+        Index("ix_ref_gl_category_mapping_category", "conversion_category"),
+        Index("ix_ref_gl_category_mapping_bs_incst", "bs_incst"),
+        Index("ix_ref_gl_category_mapping_section", "ledger_section"),
+        {"comment": "GL account to conversion category mapping"},
+    )
+
+
+class RefTransCodeCategoryMapping(Base, AuditMixin):
+    """
+    refTransCodeCategoryMapping - Maps transaction codes to ledger conversion categories.
+    Defines how unsettled transactions contribute to derived subledger rollup.
+    Grain: One row per transaction code
+    """
+    __tablename__ = "ref_trans_code_category_mapping"
+
+    trans_code: Mapped[str] = mapped_column(
+        String(20), primary_key=True,
+        comment="Transaction code (DIV, RECL, BUY, SELL, etc.)"
+    )
+    conversion_category: Mapped[str] = mapped_column(
+        String(50), nullable=False,
+        comment="Ledger conversion category for this trans code"
+    )
+    field_used: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="transAmountBase",
+        comment="Field used for rollup calculation"
+    )
+    description: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True,
+        comment="Description of transaction code"
+    )
+
+    __table_args__ = (
+        Index("ix_ref_trans_code_category_mapping_category", "conversion_category"),
+        {"comment": "Transaction code to conversion category mapping"},
+    )

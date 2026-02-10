@@ -29,6 +29,9 @@ def seed_database():
     print("📦 Seeding reference data...")
     seed_reference_data(db)
 
+    print("📦 Seeding ledger-subledger reference data...")
+    seed_ledger_subledger_reference_data(db)
+
     print("📦 Seeding events...")
     seed_events(db)
 
@@ -151,6 +154,112 @@ def seed_reference_data(db):
         },
     ]
     db[COLLECTIONS["refSecurity"]].insert_many(securities)
+
+
+# ══════════════════════════════════════════════════════════════
+# Ledger to Subledger Reference Data (per spec ledger_subledger.md)
+# ══════════════════════════════════════════════════════════════
+
+def seed_ledger_subledger_reference_data(db):
+    """
+    Seed reference data for Ledger to Subledger validation.
+    Categories from Appendix A, GL mappings from Section 3.2.
+    """
+
+    # ── Ledger Categories (Appendix A) ────────────────────────
+    ledger_categories = [
+        {"categoryName": "Cash", "subledgerSupported": True, "primaryDataSource": "Position (CU secType)", "description": "Cash and cash equivalent balances", "displayOrder": 1},
+        {"categoryName": "Investment Cost", "subledgerSupported": True, "primaryDataSource": "Position (book value)", "description": "Book/cost value of security positions", "displayOrder": 2},
+        {"categoryName": "Holdings Unrealized", "subledgerSupported": True, "primaryDataSource": "Position (unrealized G/L)", "description": "Unrealized gain/loss on positions (BS side)", "displayOrder": 3},
+        {"categoryName": "Future Margin", "subledgerSupported": True, "primaryDataSource": "Position (variation margin)", "description": "Futures variation margin and deposits", "displayOrder": 4},
+        {"categoryName": "Dividend RecPay", "subledgerSupported": True, "primaryDataSource": "Unsettled transactions", "description": "Accrued dividend receivables", "displayOrder": 5},
+        {"categoryName": "Reclaim RecPay", "subledgerSupported": True, "primaryDataSource": "Unsettled transactions", "description": "Tax reclaim receivables", "displayOrder": 6},
+        {"categoryName": "Interest RecPay", "subledgerSupported": True, "primaryDataSource": "Position income + unsettled", "description": "Accrued interest receivables/payables", "displayOrder": 7},
+        {"categoryName": "Swap Income RecPay", "subledgerSupported": True, "primaryDataSource": "Position income (swaps)", "description": "Accrued swap income", "displayOrder": 8},
+        {"categoryName": "Investment RecPay", "subledgerSupported": True, "primaryDataSource": "Unsettled transactions", "description": "Securities sold/purchased receivables/payables", "displayOrder": 9},
+        {"categoryName": "Subscription Rec", "subledgerSupported": True, "primaryDataSource": "Capital stock data", "description": "Capital shares receivable", "displayOrder": 10},
+        {"categoryName": "Expense RecPay", "subledgerSupported": False, "primaryDataSource": None, "description": "Prepaid/accrued expenses", "displayOrder": 11},
+        {"categoryName": "Capital", "subledgerSupported": False, "primaryDataSource": None, "description": "Capital stock balances", "displayOrder": 12},
+        {"categoryName": "Realized GL", "subledgerSupported": False, "primaryDataSource": None, "description": "Realized gains/losses", "displayOrder": 13},
+        {"categoryName": "Unrealized INCST", "subledgerSupported": True, "primaryDataSource": "Position (unrealized inverse)", "description": "Unrealized gain/loss (Income Statement side)", "displayOrder": 14},
+        {"categoryName": "Income", "subledgerSupported": False, "primaryDataSource": None, "description": "Income statement - revenue", "displayOrder": 15},
+        {"categoryName": "Expenses", "subledgerSupported": False, "primaryDataSource": None, "description": "Income statement - expenses", "displayOrder": 16},
+        {"categoryName": "Distribution Pay", "subledgerSupported": False, "primaryDataSource": None, "description": "Distribution payables", "displayOrder": 17},
+    ]
+    db["refLedgerCategory"].insert_many(ledger_categories)
+
+    # ── GL Account to Category Mapping (Section 3.2 - InvestOne MUFG) ────
+    gl_category_mappings = [
+        # Investment Cost - ASSETS
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "S0010", "glAccountDescription": "CASH & CASH EQUIVALENTS", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Investment Cost"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "S0075", "glAccountDescription": "COMMON STOCKS", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Investment Cost"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "S0200", "glAccountDescription": "MUTUAL FUNDS", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Investment Cost"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "S6000", "glAccountDescription": "U.S. GOVERNMENT/AGENCY OBLIGATIONS", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Investment Cost"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "S0000", "glAccountDescription": "UNCLASSIFIED", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Investment Cost"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "S0090", "glAccountDescription": "MISCELLANEOUS ASSETS", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Investment Cost"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "S0160", "glAccountDescription": "FOREIGN RIGHTS", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Investment Cost"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "S0080", "glAccountDescription": "U.S. GOVERNMENT & AGENCIES", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Investment Cost"},
+
+        # Holdings Unrealized - ASSETS
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "S0075URGL", "glAccountDescription": "COMMON STOCKS-URGL", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Holdings Unrealized"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "S0200URGL", "glAccountDescription": "MUTUAL FUNDS-URGL", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Holdings Unrealized"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "S6000URGL", "glAccountDescription": "U.S. GOVERNMENT/AGENCY OBLIGATIONS-URGL", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Holdings Unrealized"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "1100URGL", "glAccountDescription": "FOREIGN CURRENCY HOLDINGS-URGL", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Holdings Unrealized"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "S0000URGL", "glAccountDescription": "UNCLASSIFIED-URGL", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Holdings Unrealized"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "S0090URGL", "glAccountDescription": "MISCELLANEOUS ASSETS-URGL", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Holdings Unrealized"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "S0160URGL", "glAccountDescription": "FOREIGN RIGHTS-URGL", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Holdings Unrealized"},
+
+        # Cash - ASSETS
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "1050", "glAccountDescription": "CASH", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Cash"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "1100", "glAccountDescription": "FOREIGN CURRENCY HOLDINGS", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Cash"},
+
+        # Interest RecPay - ASSETS
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "AI0010", "glAccountDescription": "ACCRUED CASH & CASH EQUIVALENTS INCOME", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Interest RecPay"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "AI0080", "glAccountDescription": "ACCRUED U.S. GOVERNMENT & AGENCIES INTEREST", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Interest RecPay"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "1450", "glAccountDescription": "OTHER INCOME RECEIVABLE", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Interest RecPay"},
+
+        # Dividend RecPay - ASSETS
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "AI0075", "glAccountDescription": "ACCRUED COMMON STOCK DIVIDEND INCOME", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Dividend RecPay"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "AI0650", "glAccountDescription": "ACCRUED DIVIDENDS", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Dividend RecPay"},
+
+        # Reclaim RecPay - ASSETS
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "1550", "glAccountDescription": "RECLAIMS RECEIVABLE", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Reclaim RecPay"},
+
+        # Expense RecPay - ASSETS
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "P09600025", "glAccountDescription": "PREPAID FUND OF FUNDS MANAGEMENT FEE WAIVER", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Expense RecPay"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "P20120000", "glAccountDescription": "PREPAID FUND ADMINISTRATION / TA REIMBURSEMENT", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Expense RecPay"},
+
+        # Future Margin - ASSETS
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "1650", "glAccountDescription": "APP/DEP FUTURES", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Future Margin"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "1650URGL", "glAccountDescription": "APP/DEP FUTURES-URGL", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Future Margin"},
+
+        # Swap Income RecPay - ASSETS
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "AI0501", "glAccountDescription": "ACCRUED SWAP DIVIDENDS", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Swap Income RecPay"},
+
+        # Investment RecPay - ASSETS
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "1250", "glAccountDescription": "SECURITIES SOLD RECEIVABLE", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Investment RecPay"},
+
+        # Subscription Rec - ASSETS
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "1300", "glAccountDescription": "CAPITAL SHARES RECEIVABLE", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Subscription Rec"},
+    ]
+    db["refGLCategoryMapping"].insert_many(gl_category_mappings)
+
+    # ── Transaction Code to Category Mapping (Section 8.3) ────
+    trans_code_mappings = [
+        {"transCode": "DIV", "conversionCategory": "Dividend RecPay", "fieldUsed": "transAmountBase", "description": "Dividend payment"},
+        {"transCode": "RECL", "conversionCategory": "Reclaim RecPay", "fieldUsed": "transAmountBase", "description": "Tax reclaim"},
+        {"transCode": "RECL-", "conversionCategory": "Reclaim RecPay", "fieldUsed": "transAmountBase", "description": "Tax reclaim reversal"},
+        {"transCode": "RECL+", "conversionCategory": "Reclaim RecPay", "fieldUsed": "transAmountBase", "description": "Tax reclaim adjustment"},
+        {"transCode": "BUY", "conversionCategory": "Investment RecPay", "fieldUsed": "transAmountBase", "description": "Security purchase"},
+        {"transCode": "SELL", "conversionCategory": "Investment RecPay", "fieldUsed": "transAmountBase", "description": "Security sale"},
+        {"transCode": "COVER", "conversionCategory": "Investment RecPay", "fieldUsed": "transAmountBase", "description": "Short cover"},
+        {"transCode": "INT", "conversionCategory": "Interest RecPay", "fieldUsed": "transAmountBase", "description": "Interest payment"},
+    ]
+    db["refTransCodeCategoryMapping"].insert_many(trans_code_mappings)
+
+    print(f"  Seeded {len(ledger_categories)} ledger categories")
+    print(f"  Seeded {len(gl_category_mappings)} GL account mappings")
+    print(f"  Seeded {len(trans_code_mappings)} transaction code mappings")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -442,6 +551,190 @@ def seed_canonical_data(db):
     )
 
     print(f"  Seeded canonical data for 8 funds")
+
+    # Seed Ledger to Subledger sample data (per spec Section 2.2)
+    print("📦 Seeding ledger-subledger sample data...")
+    seed_ledger_subledger_sample_data(db)
+
+
+def seed_ledger_subledger_sample_data(db):
+    """
+    Seed sample data matching the spec examples (Section 2.2, 2.3, 4.2, 5.2, 7.2).
+    Creates Account 1 with full ledger-subledger data.
+    """
+    val_dt = "2026-02-07"
+    account = "1"
+    event_id = "EVT-2026-001"
+    user_bank = "CPU"
+    share_class = "Admiral"
+
+    # ── Create Account 1 in refFund ────────────────────────────
+    db[COLLECTIONS["refFund"]].update_one(
+        {"account": account},
+        {"$set": {"account": account, "accountName": "Sample Account 1"}},
+        upsert=True
+    )
+
+    # ── Ledger entries matching spec Section 2.2 ────────────────
+    # Map from categories to GL accounts and balances
+    ledger_entries = [
+        # Cash
+        {"gl": "1050", "bal": 7892.64, "cat": "Cash"},
+        # Investment Cost (S0075 - Common Stocks)
+        {"gl": "S0075", "bal": 637687.80, "cat": "Investment Cost"},
+        {"gl": "S0200", "bal": 138225.53, "cat": "Investment Cost"},  # Mutual Funds
+        {"gl": "S6000", "bal": 124636.99, "cat": "Investment Cost"},  # Treasury
+        {"gl": "S0080", "bal": 900449.58, "cat": "Investment Cost"},  # US Govt
+        {"gl": "S0090", "bal": 15202.30, "cat": "Investment Cost"},  # Misc
+        # Holdings Unrealized (URGL accounts)
+        {"gl": "1100URGL", "bal": 35.37, "cat": "Holdings Unrealized"},  # FX
+        {"gl": "S0200URGL", "bal": 1094.21, "cat": "Holdings Unrealized"},  # MF
+        {"gl": "S0075URGL", "bal": 373979.86, "cat": "Holdings Unrealized"},  # Stocks
+        {"gl": "S6000URGL", "bal": 5.55, "cat": "Holdings Unrealized"},  # Treasury
+        # Future Margin (with variance -97.50)
+        {"gl": "1650", "bal": 11777.97, "cat": "Future Margin"},
+        # Dividend RecPay
+        {"gl": "AI0075", "bal": 682.98, "cat": "Dividend RecPay"},
+        # Reclaim RecPay
+        {"gl": "1550", "bal": 17066.67, "cat": "Reclaim RecPay"},
+        # Interest RecPay
+        {"gl": "AI0010", "bal": 90.88, "cat": "Interest RecPay"},
+        # Expense RecPay (not supported)
+        {"gl": "P09600025", "bal": -6916.90, "cat": "Expense RecPay"},
+        # Capital (not supported)
+        {"gl": "3100", "bal": -2950315.49, "cat": "Capital"},
+        # Realized GL (not supported - using placeholder)
+        {"gl": "4100", "bal": 1157761.61, "cat": "Realized GL"},
+        # Unrealized INCST
+        {"gl": "S0075INCST", "bal": -406900.39, "cat": "Unrealized INCST"},
+        # Income (not supported)
+        {"gl": "4000", "bal": -61780.76, "cat": "Income"},
+        # Expenses (not supported)
+        {"gl": "5000", "bal": 39323.60, "cat": "Expenses"},
+    ]
+
+    for entry in ledger_entries:
+        db[COLLECTIONS["ledger"]].insert_one({
+            "eventId": event_id,
+            "valuationDt": val_dt,
+            "userBank": user_bank,
+            "account": account,
+            "acctBasis": "PRIMARY",
+            "shareClass": share_class,
+            "glAccountNumber": entry["gl"],
+            "endingBalance": entry["bal"],
+        })
+
+    # ── Positions matching spec Section 5.2 ────────────────────
+    # Security reference data
+    securities = [
+        {"assetId": "USD-CASH", "secType": "CU", "issueDescription": "US Dollar Cash"},
+        {"assetId": "GUGG-USD-I", "secType": "MF", "issueDescription": "GUGG ULTRA SHORT DUR I"},
+        {"assetId": "GUGG-STRAT-II", "secType": "MF", "issueDescription": "GUGGENHEIM STRATEGY II"},
+        {"assetId": "AAPL", "secType": "S", "issueDescription": "Apple Inc"},
+        {"assetId": "MSFT", "secType": "S", "issueDescription": "Microsoft Corp"},
+        {"assetId": "UST-10Y", "secType": "TI", "issueDescription": "US Treasury 10Y"},
+        {"assetId": "CORP-BOND-A", "secType": "CA", "issueDescription": "Corporate Bond A"},
+        {"assetId": "REPO-001", "secType": "RP", "issueDescription": "Repo Agreement 001"},
+        {"assetId": "FUT-SP500", "secType": "FT", "issueDescription": "S&P 500 Futures"},
+    ]
+
+    for sec in securities:
+        db[COLLECTIONS["refSecurity"]].update_one(
+            {"assetId": sec["assetId"], "valuationDt": val_dt, "userBank": user_bank},
+            {"$set": {
+                "assetId": sec["assetId"],
+                "valuationDt": val_dt,
+                "userBank": user_bank,
+                "secType": sec["secType"],
+                "issueDescription": sec["issueDescription"],
+                "assetCurrency": "USD",
+                "countryCode": "US",
+            }},
+            upsert=True
+        )
+
+    # Position data matching spec Section 5.2
+    positions = [
+        # Cash (CU) - Book value 7892.64, Unrealized 35.37
+        {"assetId": "USD-CASH", "bv": 7892.64, "mv": 7928.01, "income": 0, "dailyVar": 0, "ltdVar": 0},
+        # MF - GUGG ULTRA SHORT DUR I - Unrealized 983.79
+        {"assetId": "GUGG-USD-I", "bv": 100000, "mv": 100983.79, "income": 0, "dailyVar": 0, "ltdVar": 0},
+        # MF - GUGGENHEIM STRATEGY II - Unrealized 110.42
+        {"assetId": "GUGG-STRAT-II", "bv": 38225.53, "mv": 38335.95, "income": 0, "dailyVar": 0, "ltdVar": 0},
+        # S - Stocks - Unrealized 373979.86
+        {"assetId": "AAPL", "bv": 300000, "mv": 450000, "income": 0, "dailyVar": 0, "ltdVar": 0},
+        {"assetId": "MSFT", "bv": 337687.80, "mv": 561667.66, "income": 0, "dailyVar": 0, "ltdVar": 0},
+        # TI - Treasury - Book 124636.99, Unrealized 5.55
+        {"assetId": "UST-10Y", "bv": 124636.99, "mv": 124642.54, "income": 90.88, "dailyVar": 0, "ltdVar": 0},
+        # CA - Corporate Actions - Book 15202.30
+        {"assetId": "CORP-BOND-A", "bv": 15202.30, "mv": 15202.30, "income": 0, "dailyVar": 0, "ltdVar": 0},
+        # RP - Repo - Book 900449.58
+        {"assetId": "REPO-001", "bv": 900449.58, "mv": 900449.58, "income": 0, "dailyVar": 0, "ltdVar": 0},
+        # FT - Futures - Daily Var 11894.60, LTD Var -19.13 = 11875.47 (causes variance!)
+        {"assetId": "FUT-SP500", "bv": 0, "mv": 0, "income": 0, "dailyVar": 11894.60, "ltdVar": -19.13},
+    ]
+
+    for pos in positions:
+        db[COLLECTIONS["dataSubLedgerPosition"]].insert_one({
+            "valuationDt": val_dt,
+            "userBank": user_bank,
+            "account": account,
+            "acctBasis": "PRIMARY",
+            "shareClass": share_class,
+            "assetId": pos["assetId"],
+            "longShortInd": "L",
+            "posShares": 1000,
+            "posBookValueBase": pos["bv"],
+            "posMarketValueBase": pos["mv"],
+            "posBookValueLocal": pos["bv"],
+            "posMarketValueLocal": pos["mv"],
+            "posOrigCostBase": pos["bv"],
+            "posOrigCostLocal": pos["bv"],
+            "posMarketPrice": 100.00,
+            "posIncomeBase": pos["income"],
+            "posIncomeLocal": pos["income"],
+            "dailyVariationMarginBase": pos["dailyVar"],
+            "dailyVariationMarginLocal": pos["dailyVar"],
+            "ltdVariationMarginBase": pos["ltdVar"],
+            "ltdVariationMarginLocal": pos["ltdVar"],
+        })
+
+    # ── Unsettled Transactions matching spec Section 7.2 ────────
+    unsettled_transactions = [
+        # Dividend RecPay
+        {"transCode": "DIV", "amount": 682.98},
+        # Reclaim RecPay
+        {"transCode": "RECL", "amount": 13982.74},
+        {"transCode": "RECL-", "amount": -21.69},
+        {"transCode": "RECL+", "amount": 3105.62},
+    ]
+
+    for i, txn in enumerate(unsettled_transactions):
+        db[COLLECTIONS["dataSubLedgerTrans"]].insert_one({
+            "valuationDt": val_dt,
+            "userBank": user_bank,
+            "account": account,
+            "acctBasis": "PRIMARY",
+            "shareClass": share_class,
+            "assetId": f"TXN-{i}",
+            "longShortInd": "L",
+            "transactionId": f"TXN-{account}-{i}",
+            "shares": 0,
+            "origCostLocal": 0,
+            "origCostBase": 0,
+            "bookValueLocal": 0,
+            "bookValueBase": 0,
+            "marketValueLocal": 0,
+            "marketValueBase": 0,
+            "lotTradeDate": val_dt,
+            "lotSettleDate": val_dt,
+            "transCode": txn["transCode"],
+            "transAmountBase": txn["amount"],
+            "transAmountLocal": txn["amount"],
+        })
+
+    print(f"  Seeded ledger-subledger sample data for Account {account}")
 
 
 def _seed_fund_data(

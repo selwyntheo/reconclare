@@ -29,6 +29,7 @@ from db.schemas import (
 )
 from services.validation_engine import ValidationEngine, VALIDATION_CHECKS
 from services.ai_analysis import AIAnalysisService
+from services.derived_subledger import DerivedSubledgerService
 
 
 @asynccontextmanager
@@ -384,6 +385,128 @@ async def get_fund_positions(fund_account: str, valuation_dt: Optional[str] = No
         query, {"_id": 0}
     ).to_list(200)
     return positions
+
+
+# ══════════════════════════════════════════════════════════════
+# Ledger to Subledger Validation (per spec ledger_subledger.md)
+# ══════════════════════════════════════════════════════════════
+
+@app.get("/api/funds/{fund_account}/ledger-subledger")
+async def get_ledger_subledger_summary(
+    fund_account: str,
+    valuation_dt: Optional[str] = None,
+    user_bank: str = "CPU"
+):
+    """
+    Get Ledger to Subledger summary comparison (Section 2.1).
+
+    Returns a grid comparing ledger balances against derived subledger values,
+    grouped by account and category.
+    """
+    import asyncio
+
+    def _execute():
+        service = DerivedSubledgerService()
+        val_dt = valuation_dt or "2026-02-07"  # Default for demo
+        return service.get_ledger_subledger_summary(fund_account, val_dt, user_bank)
+
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, _execute)
+    return result
+
+
+@app.get("/api/funds/{fund_account}/ledger-detail")
+async def get_ledger_detail(
+    fund_account: str,
+    category: str,
+    valuation_dt: Optional[str] = None,
+    user_bank: str = "CPU"
+):
+    """
+    Get Ledger Detail drill-down (Section 4.2).
+
+    Shows individual GL accounts within the selected category.
+    """
+    import asyncio
+
+    def _execute():
+        service = DerivedSubledgerService()
+        val_dt = valuation_dt or "2026-02-07"
+        return service.get_ledger_detail(fund_account, val_dt, category, user_bank)
+
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, _execute)
+    return result
+
+
+@app.get("/api/funds/{fund_account}/position-totals")
+async def get_position_totals(
+    fund_account: str,
+    category: str,
+    valuation_dt: Optional[str] = None,
+    user_bank: str = "CPU"
+):
+    """
+    Get Position Totals drill-down (Section 5).
+
+    Shows position-level data aggregated by security type for the selected category.
+    """
+    import asyncio
+
+    def _execute():
+        service = DerivedSubledgerService()
+        val_dt = valuation_dt or "2026-02-07"
+        return service.get_position_totals_by_category(fund_account, val_dt, category, user_bank)
+
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, _execute)
+    return result
+
+
+@app.get("/api/funds/{fund_account}/unsettled-totals")
+async def get_unsettled_totals(
+    fund_account: str,
+    category: str,
+    valuation_dt: Optional[str] = None,
+):
+    """
+    Get Unsettled Totals drill-down (Section 7).
+
+    Shows unsettled transaction amounts grouped by transaction code for the selected category.
+    """
+    import asyncio
+
+    def _execute():
+        service = DerivedSubledgerService()
+        val_dt = valuation_dt or "2026-02-07"
+        return service.get_unsettled_totals_by_category(fund_account, val_dt, category)
+
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, _execute)
+    return result
+
+
+@app.get("/api/reference/ledger-categories")
+async def get_ledger_categories():
+    """Get all ledger conversion categories with their subledger support status."""
+    db = get_async_db()
+    categories = await db["refLedgerCategory"].find(
+        {}, {"_id": 0}
+    ).sort("displayOrder", 1).to_list(50)
+    return categories
+
+
+@app.get("/api/reference/gl-category-mappings")
+async def get_gl_category_mappings(chart_of_accounts: Optional[str] = None):
+    """Get GL account to category mappings."""
+    db = get_async_db()
+    query = {}
+    if chart_of_accounts:
+        query["chartOfAccounts"] = chart_of_accounts
+    mappings = await db["refGLCategoryMapping"].find(
+        query, {"_id": 0}
+    ).to_list(200)
+    return mappings
 
 
 # ══════════════════════════════════════════════════════════════

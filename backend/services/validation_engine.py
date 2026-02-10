@@ -561,72 +561,55 @@ class ValidationEngine:
     def _check_ledger_to_subledger(
         self, event_id, valuation_dt, fund_account, fund_name, run_id, check_def
     ) -> tuple[ValidationResultDoc, list[dict]]:
-        """Compare GL balances to derived subledger rollup."""
+        """
+        Compare GL balances to derived subledger rollup by category.
+        Uses DerivedSubledgerService for proper category-level comparison
+        as defined in spec ledger_subledger.md Section 9.
+        """
+        from services.derived_subledger import DerivedSubledgerService
+
         breaks = []
+        service = DerivedSubledgerService()
 
-        ledger_entries = list(self.db[COLLECTIONS["ledger"]].find({
-            "account": fund_account,
-            "valuationDt": valuation_dt,
-            "userBank": "CPU",
-        }))
+        # Get the ledger to subledger summary comparison
+        summary = service.get_ledger_subledger_summary(fund_account, valuation_dt, "CPU")
 
-        positions = list(self.db[COLLECTIONS["dataSubLedgerPosition"]].find({
-            "account": fund_account,
-            "valuationDt": valuation_dt,
-        }))
+        matched = 0
+        total_var = 0.0
+        max_var = 0.0
+        lhs_count = 0
+        rhs_count = 0
 
-        # Derive subledger rollup: sum of position market values
-        subledger_mv = sum(p.get("posMarketValueBase", 0) for p in positions)
-        subledger_income = sum(p.get("posIncomeBase", 0) or 0 for p in positions)
+        for row in summary.get("rows", []):
+            category = row.get("category", "")
+            supported = row.get("subledgerSupported", False)
+            ledger_val = row.get("ledger", 0) or 0
+            subledger_val = row.get("subLedger")
+            variance = row.get("variance", 0) or 0
 
-        # Get GL refs
-        gl_refs = {r["glAccountNumber"]: r for r in self.db[COLLECTIONS["refLedger"]].find({})}
+            lhs_count += 1
+            if supported and subledger_val is not None:
+                rhs_count += 1
 
-        asset_gl_total = 0.0
-        income_gl_total = 0.0
-        for entry in ledger_entries:
-            gl_num = entry.get("glAccountNumber", "")
-            ref = gl_refs.get(gl_num, {})
-            cat = ref.get("glCategory", "")
-            bal = entry.get("endingBalance", 0)
-            if cat == "ASSET":
-                asset_gl_total += bal
-            elif cat == "INCOME":
-                income_gl_total += bal
+            # Only check variance for supported categories
+            if supported and subledger_val is not None and abs(variance) > 0.01:
+                brk = self._make_break(
+                    run_id=run_id,
+                    fund_account=fund_account,
+                    fund_name=fund_name,
+                    check_type="LEDGER_TO_SUBLEDGER",
+                    level="L2",
+                    lhs_value=ledger_val,
+                    rhs_value=subledger_val,
+                    variance=variance,
+                    gl_category=category,
+                )
+                breaks.append(brk)
+                total_var += abs(variance)
+                max_var = max(max_var, abs(variance))
+            elif supported:
+                matched += 1
 
-        # Compare asset GL to position market values
-        asset_var = asset_gl_total - subledger_mv
-        if abs(asset_var) > 0.01 and (asset_gl_total != 0 or subledger_mv != 0):
-            brk = self._make_break(
-                run_id=run_id,
-                fund_account=fund_account,
-                fund_name=fund_name,
-                check_type="LEDGER_TO_SUBLEDGER",
-                level="L2",
-                lhs_value=asset_gl_total,
-                rhs_value=subledger_mv,
-                variance=asset_var,
-                gl_category="Investment at Market",
-            )
-            breaks.append(brk)
-
-        # Compare income GL to position accrued income
-        income_var = income_gl_total - subledger_income
-        if abs(income_var) > 0.01 and (income_gl_total != 0 or subledger_income != 0):
-            brk = self._make_break(
-                run_id=run_id,
-                fund_account=fund_account,
-                fund_name=fund_name,
-                check_type="LEDGER_TO_SUBLEDGER",
-                level="L2",
-                lhs_value=income_gl_total,
-                rhs_value=subledger_income,
-                variance=income_var,
-                gl_category="Accrued Income",
-            )
-            breaks.append(brk)
-
-        total_var = sum(abs(b["variance"]) for b in breaks)
         status = ValidationResultStatus.FAILED if breaks else ValidationResultStatus.PASSED
         return ValidationResultDoc(
             checkType="LEDGER_TO_SUBLEDGER",
@@ -635,11 +618,12 @@ class ValidationEngine:
             fundAccount=fund_account,
             fundName=fund_name,
             status=status,
-            lhsRowCount=len(ledger_entries),
-            rhsRowCount=len(positions),
-            matchedCount=len(ledger_entries) if not breaks else 0,
+            lhsRowCount=lhs_count,
+            rhsRowCount=rhs_count,
+            matchedCount=matched,
             breakCount=len(breaks),
             totalVariance=total_var,
+            maxVariance=max_var,
         ), breaks
 
     # ── L2: Basis Lot Check ──────────────────────────────────

@@ -27,6 +27,10 @@ import SmartToyIcon from '@mui/icons-material/SmartToy';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbDownIcon from '@mui/icons-material/ThumbDown';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import BugReportIcon from '@mui/icons-material/BugReport';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
 import {
   BarChart,
   Bar,
@@ -40,6 +44,7 @@ import {
 } from 'recharts';
 import { fetchEvent, fetchBreaks, fetchFundWaterfall, fetchFundPositions } from '../../services/api';
 import { ReconTreeNode, AIAnalysis, ConversionEvent, BreakRecord, Fund, WaterfallItem } from '../../types';
+import { LedgerSubledgerView } from '../../components/LedgerSubledger';
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);
@@ -117,6 +122,7 @@ const FundBreakDetail: React.FC = () => {
   const [waterfallData, setWaterfallData] = useState<WaterfallItem[]>([]);
   const [positions, setPositions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState(0);
 
   useEffect(() => {
     const load = async () => {
@@ -216,7 +222,37 @@ const FundBreakDetail: React.FC = () => {
         />
       </Stack>
 
-      {/* ── Main Layout: Left (Charts + Tree + Grid) | Right (AI Panel) ── */}
+      {/* ── View Tabs ── */}
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs
+          value={activeTab}
+          onChange={(_, v) => setActiveTab(v)}
+          sx={{
+            '& .MuiTab-root': {
+              textTransform: 'none',
+              fontWeight: 500,
+              minHeight: 48,
+            },
+          }}
+        >
+          <Tab
+            icon={<BugReportIcon />}
+            iconPosition="start"
+            label="Break Analysis"
+          />
+          <Tab
+            icon={<AccountBalanceWalletIcon />}
+            iconPosition="start"
+            label="Ledger to Subledger"
+          />
+        </Tabs>
+      </Box>
+
+      {/* ── Tab Content ── */}
+      {activeTab === 1 ? (
+        <LedgerSubledgerView fundAccount={fundAccount!} valuationDt="2026-02-07" />
+      ) : (
+      /* ── Main Layout: Left (Charts + Tree + Grid) | Right (AI Panel) ── */
       <Grid container spacing={3}>
         {/* Left Column */}
         <Grid size={{ xs: 12, lg: 8 }}>
@@ -442,6 +478,7 @@ const FundBreakDetail: React.FC = () => {
           </Paper>
         </Grid>
       </Grid>
+      )}
     </Box>
   );
 };
