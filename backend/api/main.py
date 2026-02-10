@@ -26,6 +26,9 @@ from db.mongodb import get_async_db, get_sync_db, close_async_db, COLLECTIONS
 from db.schemas import (
     EventDoc, RunValidationRequest, AnnotationRequest,
     BreakState, ReviewAction,
+    MappingType, MappingStatus,
+    GLAccountMappingDoc, CreateMappingRequest, UpdateMappingRequest,
+    BulkMappingRequest, BulkDeleteRequest,
 )
 from services.validation_engine import ValidationEngine, VALIDATION_CHECKS
 from services.ai_analysis import AIAnalysisService
@@ -560,6 +563,340 @@ async def delete_gl_category_mapping(gl_account_number: str, chart_of_accounts: 
         raise HTTPException(status_code=404, detail="Mapping not found")
 
     return {"message": "Mapping deleted"}
+
+
+# ══════════════════════════════════════════════════════════════
+# GL Account Mapping (Incumbent to Eagle)
+# ══════════════════════════════════════════════════════════════
+
+@app.get("/api/reference/incumbent-gl-accounts")
+async def list_incumbent_gl_accounts(provider: Optional[str] = None):
+    """List Incumbent GL accounts, optionally filtered by provider."""
+    db = get_async_db()
+    query = {}
+    if provider:
+        query["provider"] = provider
+    accounts = await db[COLLECTIONS["refIncumbentGLAccounts"]].find(
+        query, {"_id": 0}
+    ).sort("glAccountNumber", 1).to_list(500)
+    return accounts
+
+
+@app.get("/api/reference/eagle-gl-accounts")
+async def list_eagle_gl_accounts(ledger_section: Optional[str] = None):
+    """List Eagle GL accounts, optionally filtered by ledger section."""
+    db = get_async_db()
+    query = {}
+    if ledger_section:
+        query["ledgerSection"] = ledger_section
+    accounts = await db[COLLECTIONS["refEagleGLAccounts"]].find(
+        query, {"_id": 0}
+    ).sort("glAccountNumber", 1).to_list(500)
+    return accounts
+
+
+@app.get("/api/events/{event_id}/gl-mappings")
+async def list_gl_mappings(
+    event_id: str,
+    status: Optional[str] = None,
+    source_provider: Optional[str] = None,
+):
+    """List GL mappings for an event."""
+    db = get_async_db()
+    query: dict = {"eventId": event_id}
+    if status:
+        query["status"] = status
+    if source_provider:
+        query["sourceProvider"] = source_provider
+    mappings = await db[COLLECTIONS["glAccountMappings"]].find(
+        query, {"_id": 0}
+    ).sort("sourceGlAccountNumber", 1).to_list(1000)
+    return mappings
+
+
+@app.post("/api/events/{event_id}/gl-mappings")
+async def create_gl_mapping(event_id: str, req: CreateMappingRequest):
+    """Create a single GL mapping."""
+    if req.eventId != event_id:
+        raise HTTPException(status_code=400, detail="Event ID mismatch")
+
+    db = get_async_db()
+
+    # Fetch source account details
+    source_account = await db[COLLECTIONS["refIncumbentGLAccounts"]].find_one({
+        "glAccountNumber": req.sourceGlAccountNumber,
+        "provider": req.sourceProvider,
+    })
+    if not source_account:
+        raise HTTPException(status_code=404, detail=f"Source GL account {req.sourceGlAccountNumber} not found")
+
+    # Fetch target account details
+    target_account = await db[COLLECTIONS["refEagleGLAccounts"]].find_one({
+        "glAccountNumber": req.targetGlAccountNumber,
+    })
+    if not target_account:
+        raise HTTPException(status_code=404, detail=f"Target GL account {req.targetGlAccountNumber} not found")
+
+    mapping_id = f"MAP-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{req.sourceGlAccountNumber[:6]}"
+    now = datetime.utcnow().isoformat()
+
+    mapping_doc = {
+        "mappingId": mapping_id,
+        "eventId": event_id,
+        "sourceProvider": req.sourceProvider,
+        "sourceGlAccountNumber": req.sourceGlAccountNumber,
+        "sourceGlAccountDescription": source_account.get("glAccountDescription", ""),
+        "sourceLedgerSection": source_account.get("ledgerSection", ""),
+        "targetGlAccountNumber": req.targetGlAccountNumber,
+        "targetGlAccountDescription": target_account.get("glAccountDescription", ""),
+        "targetLedgerSection": target_account.get("ledgerSection", ""),
+        "mappingType": req.mappingType.value,
+        "splitWeight": req.splitWeight,
+        "groupId": req.groupId,
+        "effectiveDate": req.effectiveDate,
+        "status": MappingStatus.DRAFT.value,
+        "createdBy": req.createdBy,
+        "createdAt": now,
+        "updatedAt": now,
+    }
+
+    await db[COLLECTIONS["glAccountMappings"]].insert_one(mapping_doc)
+    del mapping_doc["_id"]
+    return mapping_doc
+
+
+@app.put("/api/gl-mappings/{mapping_id}")
+async def update_gl_mapping(mapping_id: str, req: UpdateMappingRequest):
+    """Update an existing GL mapping."""
+    db = get_async_db()
+
+    existing = await db[COLLECTIONS["glAccountMappings"]].find_one({"mappingId": mapping_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail=f"Mapping {mapping_id} not found")
+
+    update_data: dict = {"updatedAt": datetime.utcnow().isoformat()}
+    if req.mappingType is not None:
+        update_data["mappingType"] = req.mappingType.value
+    if req.splitWeight is not None:
+        update_data["splitWeight"] = req.splitWeight
+    if req.groupId is not None:
+        update_data["groupId"] = req.groupId
+    if req.effectiveDate is not None:
+        update_data["effectiveDate"] = req.effectiveDate
+    if req.status is not None:
+        update_data["status"] = req.status.value
+
+    await db[COLLECTIONS["glAccountMappings"]].update_one(
+        {"mappingId": mapping_id},
+        {"$set": update_data}
+    )
+
+    updated = await db[COLLECTIONS["glAccountMappings"]].find_one(
+        {"mappingId": mapping_id}, {"_id": 0}
+    )
+    return updated
+
+
+@app.delete("/api/gl-mappings/{mapping_id}")
+async def delete_gl_mapping(mapping_id: str):
+    """Delete a GL mapping."""
+    db = get_async_db()
+    result = await db[COLLECTIONS["glAccountMappings"]].delete_one({"mappingId": mapping_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail=f"Mapping {mapping_id} not found")
+    return {"status": "deleted", "mappingId": mapping_id}
+
+
+@app.post("/api/events/{event_id}/gl-mappings/bulk")
+async def bulk_create_gl_mappings(event_id: str, req: BulkMappingRequest):
+    """Bulk create GL mappings."""
+    db = get_async_db()
+    created = []
+    errors = []
+
+    # Pre-fetch all reference data for efficiency
+    incumbent_accounts = await db[COLLECTIONS["refIncumbentGLAccounts"]].find({}).to_list(500)
+    incumbent_map = {(a["glAccountNumber"], a["provider"]): a for a in incumbent_accounts}
+
+    eagle_accounts = await db[COLLECTIONS["refEagleGLAccounts"]].find({}).to_list(500)
+    eagle_map = {a["glAccountNumber"]: a for a in eagle_accounts}
+
+    now = datetime.utcnow().isoformat()
+
+    for i, mapping_req in enumerate(req.mappings):
+        if mapping_req.eventId != event_id:
+            errors.append({"index": i, "error": "Event ID mismatch"})
+            continue
+
+        source_key = (mapping_req.sourceGlAccountNumber, mapping_req.sourceProvider)
+        source_account = incumbent_map.get(source_key)
+        if not source_account:
+            errors.append({"index": i, "error": f"Source account {mapping_req.sourceGlAccountNumber} not found"})
+            continue
+
+        target_account = eagle_map.get(mapping_req.targetGlAccountNumber)
+        if not target_account:
+            errors.append({"index": i, "error": f"Target account {mapping_req.targetGlAccountNumber} not found"})
+            continue
+
+        mapping_id = f"MAP-{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')[:17]}-{mapping_req.sourceGlAccountNumber[:6]}-{i}"
+
+        mapping_doc = {
+            "mappingId": mapping_id,
+            "eventId": event_id,
+            "sourceProvider": mapping_req.sourceProvider,
+            "sourceGlAccountNumber": mapping_req.sourceGlAccountNumber,
+            "sourceGlAccountDescription": source_account.get("glAccountDescription", ""),
+            "sourceLedgerSection": source_account.get("ledgerSection", ""),
+            "targetGlAccountNumber": mapping_req.targetGlAccountNumber,
+            "targetGlAccountDescription": target_account.get("glAccountDescription", ""),
+            "targetLedgerSection": target_account.get("ledgerSection", ""),
+            "mappingType": mapping_req.mappingType.value,
+            "splitWeight": mapping_req.splitWeight,
+            "groupId": mapping_req.groupId,
+            "effectiveDate": mapping_req.effectiveDate,
+            "status": MappingStatus.DRAFT.value,
+            "createdBy": mapping_req.createdBy,
+            "createdAt": now,
+            "updatedAt": now,
+        }
+        created.append(mapping_doc)
+
+    if created:
+        await db[COLLECTIONS["glAccountMappings"]].insert_many(created)
+        # Remove _id from response
+        for doc in created:
+            if "_id" in doc:
+                del doc["_id"]
+
+    return {"created": len(created), "errors": errors, "mappings": created}
+
+
+@app.delete("/api/events/{event_id}/gl-mappings/bulk")
+async def bulk_delete_gl_mappings(event_id: str, req: BulkDeleteRequest):
+    """Bulk delete GL mappings."""
+    db = get_async_db()
+
+    result = await db[COLLECTIONS["glAccountMappings"]].delete_many({
+        "eventId": event_id,
+        "mappingId": {"$in": req.mappingIds}
+    })
+
+    return {"deleted": result.deleted_count, "requested": len(req.mappingIds)}
+
+
+@app.get("/api/events/{event_id}/gl-mappings/unmapped")
+async def get_unmapped_accounts(event_id: str, source_provider: Optional[str] = None):
+    """Get unmapped accounts for an event."""
+    db = get_async_db()
+
+    # Get event to determine the incumbent provider
+    event = await db[COLLECTIONS["events"]].find_one({"eventId": event_id})
+    if not event:
+        raise HTTPException(status_code=404, detail=f"Event {event_id} not found")
+
+    provider = source_provider or event.get("incumbentProvider", "").upper().replace(" ", "_")
+
+    # Get all incumbent accounts for the provider
+    incumbent_query = {"provider": provider} if provider else {}
+    incumbent_accounts = await db[COLLECTIONS["refIncumbentGLAccounts"]].find(
+        incumbent_query, {"_id": 0}
+    ).to_list(500)
+
+    # Get all mapped source account numbers for this event
+    mappings = await db[COLLECTIONS["glAccountMappings"]].find(
+        {"eventId": event_id},
+        {"sourceGlAccountNumber": 1}
+    ).to_list(1000)
+    mapped_source_numbers = {m["sourceGlAccountNumber"] for m in mappings}
+
+    # Get all Eagle accounts
+    eagle_accounts = await db[COLLECTIONS["refEagleGLAccounts"]].find(
+        {}, {"_id": 0}
+    ).to_list(500)
+
+    # Get all mapped target account numbers
+    target_mappings = await db[COLLECTIONS["glAccountMappings"]].find(
+        {"eventId": event_id},
+        {"targetGlAccountNumber": 1}
+    ).to_list(1000)
+    mapped_target_numbers = {m["targetGlAccountNumber"] for m in target_mappings}
+
+    unmapped_incumbent = [a for a in incumbent_accounts if a["glAccountNumber"] not in mapped_source_numbers]
+    unmapped_eagle = [a for a in eagle_accounts if a["glAccountNumber"] not in mapped_target_numbers]
+
+    return {
+        "unmappedIncumbent": unmapped_incumbent,
+        "unmappedEagle": unmapped_eagle,
+    }
+
+
+@app.post("/api/events/{event_id}/gl-mappings/validate")
+async def validate_mappings(event_id: str):
+    """Validate GL mappings for an event."""
+    db = get_async_db()
+
+    mappings = await db[COLLECTIONS["glAccountMappings"]].find(
+        {"eventId": event_id}, {"_id": 0}
+    ).to_list(1000)
+
+    errors = []
+    warnings = []
+
+    # Group mappings by source account for 1:N validation
+    source_groups: dict = {}
+    for m in mappings:
+        key = m["sourceGlAccountNumber"]
+        if key not in source_groups:
+            source_groups[key] = []
+        source_groups[key].append(m)
+
+    # Validate split weights for 1:N mappings
+    for source, group in source_groups.items():
+        if len(group) > 1:
+            total_weight = sum(m.get("splitWeight", 1.0) for m in group)
+            if abs(total_weight - 1.0) > 0.001:
+                errors.append({
+                    "type": "INVALID_SPLIT_WEIGHT",
+                    "sourceGlAccountNumber": source,
+                    "message": f"Split weights sum to {total_weight:.4f}, expected 1.0",
+                    "mappingIds": [m["mappingId"] for m in group],
+                })
+
+    # Check for unmapped accounts
+    event = await db[COLLECTIONS["events"]].find_one({"eventId": event_id})
+    if event:
+        provider = event.get("incumbentProvider", "").upper().replace(" ", "_")
+        incumbent_accounts = await db[COLLECTIONS["refIncumbentGLAccounts"]].find(
+            {"provider": provider}, {"_id": 0}
+        ).to_list(500)
+
+        mapped_source_numbers = {m["sourceGlAccountNumber"] for m in mappings}
+        unmapped_count = len([a for a in incumbent_accounts if a["glAccountNumber"] not in mapped_source_numbers])
+
+        if unmapped_count > 0:
+            warnings.append({
+                "type": "UNMAPPED_ACCOUNTS",
+                "message": f"{unmapped_count} incumbent GL accounts are not mapped",
+            })
+
+    # Check for ledger section mismatches
+    for m in mappings:
+        if m.get("sourceLedgerSection") != m.get("targetLedgerSection"):
+            warnings.append({
+                "type": "LEDGER_SECTION_MISMATCH",
+                "mappingId": m["mappingId"],
+                "message": f"Source ({m.get('sourceLedgerSection')}) and target ({m.get('targetLedgerSection')}) ledger sections differ",
+            })
+
+    is_valid = len(errors) == 0
+
+    return {
+        "isValid": is_valid,
+        "errors": errors,
+        "warnings": warnings,
+        "mappingCount": len(mappings),
+    }
 
 
 # ══════════════════════════════════════════════════════════════

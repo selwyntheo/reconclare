@@ -355,3 +355,6 @@ export interface LedgerSubledgerDrillDownSelection {
   category: string;
   subledgerSupported: boolean;
 }
+
+// ── GL Account Mapping Types ─────────────────────────────────
+export * from './glMapping';

@@ -38,6 +38,9 @@ def seed_database():
     print("📦 Seeding canonical data (CPU + Incumbent)...")
     seed_canonical_data(db)
 
+    print("📦 Seeding GL Account Mapping reference data...")
+    seed_gl_account_mapping_data(db)
+
     print("✅ Seed complete!")
     client.close()
 
@@ -862,6 +865,126 @@ def _seed_fund_data(
                 "glAccountNumber": entry["gl"],
                 "endingBalance": entry["bal"],
             })
+
+
+def seed_gl_account_mapping_data(db):
+    """
+    Seed reference data for GL Account Mapping (Incumbent to Eagle).
+    Creates sample accounts for multiple incumbent providers and Eagle.
+    """
+
+    # ── Incumbent GL Accounts (State Street) ──────────────────────
+    state_street_accounts = [
+        {"glAccountNumber": "1050", "glAccountDescription": "CASH", "ledgerSection": "ASSETS", "provider": "STATE_STREET"},
+        {"glAccountNumber": "1100", "glAccountDescription": "FOREIGN CURRENCY HOLDINGS", "ledgerSection": "ASSETS", "provider": "STATE_STREET"},
+        {"glAccountNumber": "1250", "glAccountDescription": "SECURITIES SOLD RECEIVABLE", "ledgerSection": "ASSETS", "provider": "STATE_STREET"},
+        {"glAccountNumber": "1300", "glAccountDescription": "CAPITAL SHARES RECEIVABLE", "ledgerSection": "ASSETS", "provider": "STATE_STREET"},
+        {"glAccountNumber": "1450", "glAccountDescription": "OTHER INCOME RECEIVABLE", "ledgerSection": "ASSETS", "provider": "STATE_STREET"},
+        {"glAccountNumber": "1550", "glAccountDescription": "RECLAIMS RECEIVABLE", "ledgerSection": "ASSETS", "provider": "STATE_STREET"},
+        {"glAccountNumber": "1650", "glAccountDescription": "APP/DEP FUTURES", "ledgerSection": "ASSETS", "provider": "STATE_STREET"},
+        {"glAccountNumber": "S0010", "glAccountDescription": "CASH & CASH EQUIVALENTS", "ledgerSection": "ASSETS", "provider": "STATE_STREET"},
+        {"glAccountNumber": "S0075", "glAccountDescription": "COMMON STOCKS", "ledgerSection": "ASSETS", "provider": "STATE_STREET"},
+        {"glAccountNumber": "S0080", "glAccountDescription": "U.S. GOVERNMENT & AGENCIES", "ledgerSection": "ASSETS", "provider": "STATE_STREET"},
+        {"glAccountNumber": "S0090", "glAccountDescription": "MISCELLANEOUS ASSETS", "ledgerSection": "ASSETS", "provider": "STATE_STREET"},
+        {"glAccountNumber": "S0160", "glAccountDescription": "FOREIGN RIGHTS", "ledgerSection": "ASSETS", "provider": "STATE_STREET"},
+        {"glAccountNumber": "S0200", "glAccountDescription": "MUTUAL FUNDS", "ledgerSection": "ASSETS", "provider": "STATE_STREET"},
+        {"glAccountNumber": "S6000", "glAccountDescription": "U.S. GOVERNMENT/AGENCY OBLIGATIONS", "ledgerSection": "ASSETS", "provider": "STATE_STREET"},
+        {"glAccountNumber": "S0075URGL", "glAccountDescription": "COMMON STOCKS-URGL", "ledgerSection": "ASSETS", "provider": "STATE_STREET"},
+        {"glAccountNumber": "S0200URGL", "glAccountDescription": "MUTUAL FUNDS-URGL", "ledgerSection": "ASSETS", "provider": "STATE_STREET"},
+        {"glAccountNumber": "1100URGL", "glAccountDescription": "FOREIGN CURRENCY HOLDINGS-URGL", "ledgerSection": "ASSETS", "provider": "STATE_STREET"},
+        {"glAccountNumber": "AI0010", "glAccountDescription": "ACCRUED CASH & CASH EQUIVALENTS INCOME", "ledgerSection": "ASSETS", "provider": "STATE_STREET"},
+        {"glAccountNumber": "AI0075", "glAccountDescription": "ACCRUED COMMON STOCK DIVIDEND INCOME", "ledgerSection": "ASSETS", "provider": "STATE_STREET"},
+        {"glAccountNumber": "AI0080", "glAccountDescription": "ACCRUED U.S. GOVERNMENT & AGENCIES INTEREST", "ledgerSection": "ASSETS", "provider": "STATE_STREET"},
+        {"glAccountNumber": "2050", "glAccountDescription": "ACCOUNTS PAYABLE", "ledgerSection": "LIABILITIES", "provider": "STATE_STREET"},
+        {"glAccountNumber": "2100", "glAccountDescription": "SECURITIES PURCHASED PAYABLE", "ledgerSection": "LIABILITIES", "provider": "STATE_STREET"},
+        {"glAccountNumber": "2200", "glAccountDescription": "CAPITAL SHARES PAYABLE", "ledgerSection": "LIABILITIES", "provider": "STATE_STREET"},
+        {"glAccountNumber": "2300", "glAccountDescription": "DISTRIBUTIONS PAYABLE", "ledgerSection": "LIABILITIES", "provider": "STATE_STREET"},
+        {"glAccountNumber": "2400", "glAccountDescription": "ACCRUED EXPENSES PAYABLE", "ledgerSection": "LIABILITIES", "provider": "STATE_STREET"},
+        {"glAccountNumber": "3100", "glAccountDescription": "CAPITAL STOCK", "ledgerSection": "EQUITY", "provider": "STATE_STREET"},
+        {"glAccountNumber": "3200", "glAccountDescription": "UNDISTRIBUTED NET INVESTMENT INCOME", "ledgerSection": "EQUITY", "provider": "STATE_STREET"},
+        {"glAccountNumber": "3300", "glAccountDescription": "UNDISTRIBUTED REALIZED GAINS", "ledgerSection": "EQUITY", "provider": "STATE_STREET"},
+        {"glAccountNumber": "3400", "glAccountDescription": "UNREALIZED APPRECIATION", "ledgerSection": "EQUITY", "provider": "STATE_STREET"},
+        {"glAccountNumber": "4100", "glAccountDescription": "DIVIDEND INCOME", "ledgerSection": "INCOME", "provider": "STATE_STREET"},
+        {"glAccountNumber": "4200", "glAccountDescription": "INTEREST INCOME", "ledgerSection": "INCOME", "provider": "STATE_STREET"},
+        {"glAccountNumber": "4300", "glAccountDescription": "REALIZED GAINS ON SECURITIES", "ledgerSection": "INCOME", "provider": "STATE_STREET"},
+        {"glAccountNumber": "5100", "glAccountDescription": "MANAGEMENT FEES", "ledgerSection": "EXPENSE", "provider": "STATE_STREET"},
+        {"glAccountNumber": "5200", "glAccountDescription": "CUSTODY FEES", "ledgerSection": "EXPENSE", "provider": "STATE_STREET"},
+        {"glAccountNumber": "5300", "glAccountDescription": "AUDIT FEES", "ledgerSection": "EXPENSE", "provider": "STATE_STREET"},
+    ]
+
+    # ── Incumbent GL Accounts (Northern Trust) ────────────────────
+    northern_trust_accounts = [
+        {"glAccountNumber": "NT-1010", "glAccountDescription": "CASH AND CASH EQUIVALENTS", "ledgerSection": "ASSETS", "provider": "NORTHERN_TRUST"},
+        {"glAccountNumber": "NT-1020", "glAccountDescription": "FOREIGN CURRENCY", "ledgerSection": "ASSETS", "provider": "NORTHERN_TRUST"},
+        {"glAccountNumber": "NT-1110", "glAccountDescription": "EQUITY SECURITIES AT MARKET", "ledgerSection": "ASSETS", "provider": "NORTHERN_TRUST"},
+        {"glAccountNumber": "NT-1120", "glAccountDescription": "FIXED INCOME SECURITIES", "ledgerSection": "ASSETS", "provider": "NORTHERN_TRUST"},
+        {"glAccountNumber": "NT-1130", "glAccountDescription": "DERIVATIVE ASSETS", "ledgerSection": "ASSETS", "provider": "NORTHERN_TRUST"},
+        {"glAccountNumber": "NT-1210", "glAccountDescription": "INVESTMENT RECEIVABLE", "ledgerSection": "ASSETS", "provider": "NORTHERN_TRUST"},
+        {"glAccountNumber": "NT-1220", "glAccountDescription": "DIVIDEND RECEIVABLE", "ledgerSection": "ASSETS", "provider": "NORTHERN_TRUST"},
+        {"glAccountNumber": "NT-1230", "glAccountDescription": "INTEREST RECEIVABLE", "ledgerSection": "ASSETS", "provider": "NORTHERN_TRUST"},
+        {"glAccountNumber": "NT-1240", "glAccountDescription": "TAX RECLAIM RECEIVABLE", "ledgerSection": "ASSETS", "provider": "NORTHERN_TRUST"},
+        {"glAccountNumber": "NT-2010", "glAccountDescription": "INVESTMENT PAYABLE", "ledgerSection": "LIABILITIES", "provider": "NORTHERN_TRUST"},
+        {"glAccountNumber": "NT-2020", "glAccountDescription": "MANAGEMENT FEE PAYABLE", "ledgerSection": "LIABILITIES", "provider": "NORTHERN_TRUST"},
+        {"glAccountNumber": "NT-2030", "glAccountDescription": "DISTRIBUTION PAYABLE", "ledgerSection": "LIABILITIES", "provider": "NORTHERN_TRUST"},
+        {"glAccountNumber": "NT-3010", "glAccountDescription": "SHAREHOLDER CAPITAL", "ledgerSection": "EQUITY", "provider": "NORTHERN_TRUST"},
+        {"glAccountNumber": "NT-3020", "glAccountDescription": "RETAINED EARNINGS", "ledgerSection": "EQUITY", "provider": "NORTHERN_TRUST"},
+        {"glAccountNumber": "NT-4010", "glAccountDescription": "DIVIDEND INCOME", "ledgerSection": "INCOME", "provider": "NORTHERN_TRUST"},
+        {"glAccountNumber": "NT-4020", "glAccountDescription": "INTEREST INCOME", "ledgerSection": "INCOME", "provider": "NORTHERN_TRUST"},
+        {"glAccountNumber": "NT-5010", "glAccountDescription": "MANAGEMENT EXPENSE", "ledgerSection": "EXPENSE", "provider": "NORTHERN_TRUST"},
+    ]
+
+    # ── Eagle GL Accounts ─────────────────────────────────────────
+    eagle_accounts = [
+        {"glAccountNumber": "EAGLE-1050", "glAccountDescription": "Cash Account", "ledgerSection": "ASSETS", "category": "Cash"},
+        {"glAccountNumber": "EAGLE-1100", "glAccountDescription": "Foreign Currency Holdings", "ledgerSection": "ASSETS", "category": "Cash"},
+        {"glAccountNumber": "EAGLE-1100A", "glAccountDescription": "FX Account - Major Currencies", "ledgerSection": "ASSETS", "category": "Cash"},
+        {"glAccountNumber": "EAGLE-1100B", "glAccountDescription": "FX Account - Emerging Markets", "ledgerSection": "ASSETS", "category": "Cash"},
+        {"glAccountNumber": "EAGLE-1250", "glAccountDescription": "Securities Sold Receivable", "ledgerSection": "ASSETS", "category": "Investment RecPay"},
+        {"glAccountNumber": "EAGLE-1300", "glAccountDescription": "Capital Shares Receivable", "ledgerSection": "ASSETS", "category": "Subscription Rec"},
+        {"glAccountNumber": "EAGLE-1450", "glAccountDescription": "Other Income Receivable", "ledgerSection": "ASSETS", "category": "Interest RecPay"},
+        {"glAccountNumber": "EAGLE-1550", "glAccountDescription": "Tax Reclaims Receivable", "ledgerSection": "ASSETS", "category": "Reclaim RecPay"},
+        {"glAccountNumber": "EAGLE-1650", "glAccountDescription": "Futures Margin", "ledgerSection": "ASSETS", "category": "Future Margin"},
+        {"glAccountNumber": "EAGLE-S0075", "glAccountDescription": "Equity Securities", "ledgerSection": "ASSETS", "category": "Investment Cost"},
+        {"glAccountNumber": "EAGLE-S0080", "glAccountDescription": "Government Securities", "ledgerSection": "ASSETS", "category": "Investment Cost"},
+        {"glAccountNumber": "EAGLE-S0090", "glAccountDescription": "Other Investment Assets", "ledgerSection": "ASSETS", "category": "Investment Cost"},
+        {"glAccountNumber": "EAGLE-S0200", "glAccountDescription": "Mutual Fund Holdings", "ledgerSection": "ASSETS", "category": "Investment Cost"},
+        {"glAccountNumber": "EAGLE-S6000", "glAccountDescription": "Treasury Securities", "ledgerSection": "ASSETS", "category": "Investment Cost"},
+        {"glAccountNumber": "EAGLE-URGL-EQ", "glAccountDescription": "Equity Unrealized Gain/Loss", "ledgerSection": "ASSETS", "category": "Holdings Unrealized"},
+        {"glAccountNumber": "EAGLE-URGL-FI", "glAccountDescription": "Fixed Income Unrealized G/L", "ledgerSection": "ASSETS", "category": "Holdings Unrealized"},
+        {"glAccountNumber": "EAGLE-URGL-FX", "glAccountDescription": "FX Unrealized Gain/Loss", "ledgerSection": "ASSETS", "category": "Holdings Unrealized"},
+        {"glAccountNumber": "EAGLE-AI-DIV", "glAccountDescription": "Accrued Dividends", "ledgerSection": "ASSETS", "category": "Dividend RecPay"},
+        {"glAccountNumber": "EAGLE-AI-INT", "glAccountDescription": "Accrued Interest", "ledgerSection": "ASSETS", "category": "Interest RecPay"},
+        {"glAccountNumber": "EAGLE-2050", "glAccountDescription": "Accounts Payable", "ledgerSection": "LIABILITIES", "category": "Expense RecPay"},
+        {"glAccountNumber": "EAGLE-2100", "glAccountDescription": "Securities Purchased Payable", "ledgerSection": "LIABILITIES", "category": "Investment RecPay"},
+        {"glAccountNumber": "EAGLE-2200", "glAccountDescription": "Capital Shares Payable", "ledgerSection": "LIABILITIES", "category": "Subscription Rec"},
+        {"glAccountNumber": "EAGLE-2300", "glAccountDescription": "Distributions Payable", "ledgerSection": "LIABILITIES", "category": "Distribution Pay"},
+        {"glAccountNumber": "EAGLE-2400", "glAccountDescription": "Accrued Expenses", "ledgerSection": "LIABILITIES", "category": "Expense RecPay"},
+        {"glAccountNumber": "EAGLE-3100", "glAccountDescription": "Capital Stock", "ledgerSection": "EQUITY", "category": "Capital"},
+        {"glAccountNumber": "EAGLE-3200", "glAccountDescription": "Undistributed Net Income", "ledgerSection": "EQUITY", "category": "Capital"},
+        {"glAccountNumber": "EAGLE-3300", "glAccountDescription": "Accumulated Realized Gains", "ledgerSection": "EQUITY", "category": "Realized GL"},
+        {"glAccountNumber": "EAGLE-3400", "glAccountDescription": "Net Unrealized Appreciation", "ledgerSection": "EQUITY", "category": "Unrealized INCST"},
+        {"glAccountNumber": "EAGLE-4100", "glAccountDescription": "Dividend Income", "ledgerSection": "INCOME", "category": "Income"},
+        {"glAccountNumber": "EAGLE-4200", "glAccountDescription": "Interest Income", "ledgerSection": "INCOME", "category": "Income"},
+        {"glAccountNumber": "EAGLE-4300", "glAccountDescription": "Realized Gains - Securities", "ledgerSection": "INCOME", "category": "Realized GL"},
+        {"glAccountNumber": "EAGLE-4400", "glAccountDescription": "Realized Gains - FX", "ledgerSection": "INCOME", "category": "Realized GL"},
+        {"glAccountNumber": "EAGLE-5100", "glAccountDescription": "Management Fees", "ledgerSection": "EXPENSE", "category": "Expenses"},
+        {"glAccountNumber": "EAGLE-5200", "glAccountDescription": "Custody Fees", "ledgerSection": "EXPENSE", "category": "Expenses"},
+        {"glAccountNumber": "EAGLE-5300", "glAccountDescription": "Audit Fees", "ledgerSection": "EXPENSE", "category": "Expenses"},
+        {"glAccountNumber": "EAGLE-5400", "glAccountDescription": "Legal Fees", "ledgerSection": "EXPENSE", "category": "Expenses"},
+    ]
+
+    # Insert Incumbent accounts
+    all_incumbent = state_street_accounts + northern_trust_accounts
+    if all_incumbent:
+        db[COLLECTIONS["refIncumbentGLAccounts"]].drop()
+        db[COLLECTIONS["refIncumbentGLAccounts"]].insert_many(all_incumbent)
+        print(f"  Seeded {len(all_incumbent)} incumbent GL accounts")
+
+    # Insert Eagle accounts
+    if eagle_accounts:
+        db[COLLECTIONS["refEagleGLAccounts"]].drop()
+        db[COLLECTIONS["refEagleGLAccounts"]].insert_many(eagle_accounts)
+        print(f"  Seeded {len(eagle_accounts)} Eagle GL accounts")
 
 
 if __name__ == "__main__":

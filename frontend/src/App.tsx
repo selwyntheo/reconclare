@@ -10,6 +10,7 @@ import ValidationRunView from './pages/ValidationRunView/ValidationRunView';
 import FundBreakDetail from './pages/FundBreakDetail/FundBreakDetail';
 import HumanReview from './pages/HumanReview/HumanReview';
 import LedgerMapping from './pages/LedgerMapping/LedgerMapping';
+import GLAccountMapping from './pages/GLAccountMapping/GLAccountMapping';
 
 function App() {
   return (
@@ -24,6 +25,8 @@ function App() {
             <Route path="events/:eventId/funds/:fundAccount" element={<FundBreakDetail />} />
             <Route path="review" element={<HumanReview />} />
             <Route path="ledger-mapping" element={<LedgerMapping />} />
+            <Route path="gl-account-mapping" element={<GLAccountMapping />} />
+            <Route path="gl-account-mapping/:eventId" element={<GLAccountMapping />} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -396,3 +396,88 @@ class AnnotationRequest(BaseModel):
     reviewerUserId: str = "u1"
     reviewerName: str = "Jane Doe"
     reviewerRole: str = "CONVERSION_MANAGER"
+
+
+# ══════════════════════════════════════════════════════════════
+# GL Account Mapping Schemas (Incumbent to Eagle)
+# ══════════════════════════════════════════════════════════════
+
+class MappingType(str, Enum):
+    ONE_TO_ONE = "ONE_TO_ONE"
+    ONE_TO_MANY = "ONE_TO_MANY"
+    MANY_TO_ONE = "MANY_TO_ONE"
+
+
+class MappingStatus(str, Enum):
+    DRAFT = "DRAFT"
+    ACTIVE = "ACTIVE"
+    ARCHIVED = "ARCHIVED"
+
+
+class IncumbentGLAccount(BaseModel):
+    """Reference data for Incumbent GL accounts"""
+    glAccountNumber: str
+    glAccountDescription: str
+    ledgerSection: str  # ASSETS, LIABILITIES, EQUITY, INCOME, EXPENSE
+    provider: str  # STATE_STREET, NORTHERN_TRUST, BNP_PARIBAS, JP_MORGAN
+
+
+class EagleGLAccount(BaseModel):
+    """Reference data for Eagle GL accounts"""
+    glAccountNumber: str
+    glAccountDescription: str
+    ledgerSection: str
+    category: Optional[str] = None
+
+
+class GLAccountMappingDoc(BaseModel):
+    """GL Account Mapping document - maps Incumbent GL to Eagle GL"""
+    mappingId: str
+    eventId: str
+    sourceProvider: str
+    sourceGlAccountNumber: str
+    sourceGlAccountDescription: str
+    sourceLedgerSection: str
+    targetGlAccountNumber: str
+    targetGlAccountDescription: str
+    targetLedgerSection: str
+    mappingType: MappingType = MappingType.ONE_TO_ONE
+    splitWeight: float = 1.0  # For 1:N mappings, weights should sum to 1.0
+    groupId: Optional[str] = None  # Groups related mappings (for 1:N or N:1)
+    effectiveDate: Optional[str] = None
+    status: MappingStatus = MappingStatus.DRAFT
+    createdBy: str = "u1"
+    createdAt: Optional[str] = None
+    updatedAt: Optional[str] = None
+
+
+class CreateMappingRequest(BaseModel):
+    """Request to create a single GL mapping"""
+    eventId: str
+    sourceProvider: str
+    sourceGlAccountNumber: str
+    targetGlAccountNumber: str
+    mappingType: MappingType = MappingType.ONE_TO_ONE
+    splitWeight: float = 1.0
+    groupId: Optional[str] = None
+    effectiveDate: Optional[str] = None
+    createdBy: str = "u1"
+
+
+class UpdateMappingRequest(BaseModel):
+    """Request to update an existing GL mapping"""
+    mappingType: Optional[MappingType] = None
+    splitWeight: Optional[float] = None
+    groupId: Optional[str] = None
+    effectiveDate: Optional[str] = None
+    status: Optional[MappingStatus] = None
+
+
+class BulkMappingRequest(BaseModel):
+    """Request for bulk mapping operations"""
+    mappings: list[CreateMappingRequest]
+
+
+class BulkDeleteRequest(BaseModel):
+    """Request for bulk delete operations"""
+    mappingIds: list[str]

@@ -101,4 +101,8 @@ COLLECTIONS = {
     "validationResults": "validationResults",
     "breakRecords": "breakRecords",
     "activityFeed": "activityFeed",
+    # GL Account Mapping Tables
+    "glAccountMappings": "glAccountMappings",
+    "refIncumbentGLAccounts": "refIncumbentGLAccounts",
+    "refEagleGLAccounts": "refEagleGLAccounts",
 }

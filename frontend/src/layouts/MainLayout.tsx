@@ -27,6 +27,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 
 const DRAWER_WIDTH = 260;
 const DRAWER_COLLAPSED = 72;
@@ -41,6 +42,7 @@ const navItems: NavItem[] = [
   { label: 'Event Dashboard', icon: <DashboardIcon />, path: '/' },
   { label: 'Human Review', icon: <RateReviewIcon />, path: '/review' },
   { label: 'Ledger Mapping', icon: <AccountBalanceWalletIcon />, path: '/ledger-mapping' },
+  { label: 'GL Account Mapping', icon: <SwapHorizIcon />, path: '/gl-account-mapping' },
 ];
 
 const MainLayout: React.FC = () => {
