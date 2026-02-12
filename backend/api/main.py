@@ -1334,49 +1334,290 @@ async def ai_analysis_aggregation(
     account: Optional[str] = None,
     category: Optional[str] = None,
 ):
-    """Aggregated AI analysis data for the commentary panel."""
+    """Contextual AI analysis aggregated from break records for the commentary panel.
+
+    Produces different analysis depending on drill-down level:
+    - NAV level (eventId only): fund-level trend narrative, cross-fund patterns
+    - Trial Balance level (eventId + account): category variance drivers, drill-down priorities
+    - Position level (eventId + account + category): root cause per position, evidence chain
+    """
     db = get_async_db()
-    query: dict = {}
+
+    # Find the latest validation run
+    if not eventId:
+        return {"trendSummary": "Select an event to see analysis.", "patternRecognition": [],
+                "confidenceScore": 0, "recommendedNextStep": "Navigate to an event first."}
+
+    latest_run = await db[COLLECTIONS["validationRuns"]].find_one(
+        {"eventId": eventId}, {"runId": 1, "results": 1}, sort=[("_id", -1)],
+    )
+    if not latest_run:
+        return {"trendSummary": "No validation data available.", "patternRecognition": [],
+                "confidenceScore": 0, "recommendedNextStep": "Run a validation first."}
+
+    run_id = latest_run["runId"]
+
+    # Query breaks for this run
+    query: dict = {"validationRunId": run_id}
     if account:
         query["fundAccount"] = account
-    if eventId:
-        runs = await db[COLLECTIONS["validationRuns"]].find(
-            {"eventId": eventId}, {"runId": 1}
-        ).to_list(100)
-        run_ids = [r["runId"] for r in runs]
-        if run_ids:
-            query["validationRunId"] = {"$in": run_ids}
-        else:
-            return {"trendSummary": "No validation data available.", "patternRecognition": [],
-                    "confidenceScore": 0, "recommendedNextStep": "Run a validation first."}
+    if category:
+        query["glCategory"] = category
 
     breaks = await db[COLLECTIONS["breakRecords"]].find(query, {"_id": 0}).to_list(500)
 
-    confidence_sum = 0.0
-    confidence_count = 0
-    patterns = []
-    for brk in breaks:
-        ai = brk.get("aiAnalysis")
-        if ai:
-            c = ai.get("confidenceScore", ai.get("confidence", 0))
-            if c:
-                confidence_sum += c
-                confidence_count += 1
-            for sb in ai.get("similarBreaks", []):
-                patterns.append(sb)
+    if not breaks:
+        if account and category:
+            return {"trendSummary": f"No breaks detected for {category}. Ledger and subledger are in agreement.",
+                    "patternRecognition": [], "confidenceScore": 100,
+                    "recommendedNextStep": "No action required for this category."}
+        if account:
+            return {"trendSummary": "No breaks detected for this fund. All validation checks passed.",
+                    "patternRecognition": [], "confidenceScore": 100,
+                    "recommendedNextStep": "No further investigation needed."}
+        return {"trendSummary": "No breaks detected across all funds. All validations passed.",
+                "patternRecognition": [], "confidenceScore": 100,
+                "recommendedNextStep": "No action required."}
 
-    avg_conf = (confidence_sum / confidence_count) if confidence_count > 0 else 0
+    # ── Position level (most granular) ────────────────────────
+    if account and category:
+        return _build_position_level_analysis(breaks, account, category)
+
+    # ── Trial Balance level (fund + categories) ──────────────
+    if account:
+        return _build_trial_balance_analysis(breaks, account)
+
+    # ── NAV level (all funds) ────────────────────────────────
+    return _build_nav_level_analysis(breaks, latest_run.get("results", []))
+
+
+def _build_nav_level_analysis(breaks: list[dict], run_results: list[dict]) -> dict:
+    """NAV Dashboard: fund-level trend narrative with cross-fund patterns."""
+    # Group breaks by fund
+    by_fund: dict[str, list] = {}
+    for b in breaks:
+        by_fund.setdefault(b["fundAccount"], []).append(b)
+
+    # Group breaks by category (breakCategory from AI)
+    by_ai_category: dict[str, int] = {}
+    confidence_vals = []
+    for b in breaks:
+        ai = b.get("aiAnalysis") or {}
+        cat = ai.get("breakCategory", "UNKNOWN")
+        by_ai_category[cat] = by_ai_category.get(cat, 0) + 1
+        c = ai.get("confidenceScore", 0)
+        if c:
+            confidence_vals.append(c)
+
+    avg_conf = (sum(confidence_vals) / len(confidence_vals)) if confidence_vals else 0
+
+    # Find the fund with the largest total variance
+    fund_variances = []
+    for fa, fund_breaks in by_fund.items():
+        total_var = sum(abs(b.get("variance", 0)) for b in fund_breaks)
+        name = fund_breaks[0].get("fundName", fa)
+        fund_variances.append((fa, name, total_var, len(fund_breaks)))
+    fund_variances.sort(key=lambda x: x[2], reverse=True)
+
+    # Build trend narrative
+    total_funds_with_breaks = len(by_fund)
     total_breaks = len(breaks)
-    trend = f"{total_breaks} break(s) detected across the selected scope."
-    if total_breaks == 0:
-        trend = "No breaks detected. All validations passed."
-    next_step = "Review breaks with lowest confidence scores first." if total_breaks > 0 else "No action required."
+    parts = [f"{total_breaks} breaks across {total_funds_with_breaks} fund(s)."]
+
+    if fund_variances:
+        top = fund_variances[0]
+        parts.append(f"Largest exposure: {top[1]} ({top[0]}) with ${top[2]:,.2f} total variance across {top[3]} break(s).")
+
+    # Describe dominant break category
+    if by_ai_category:
+        dominant = max(by_ai_category, key=by_ai_category.get)  # type: ignore[arg-type]
+        count = by_ai_category[dominant]
+        parts.append(f"Primary pattern: {dominant.replace('_', ' ').title()} ({count}/{total_breaks} breaks).")
+
+    # Build pattern recognition from cross-fund similarities
+    patterns = []
+    for cat, count in sorted(by_ai_category.items(), key=lambda x: x[1], reverse=True)[:3]:
+        if count >= 2:
+            affected = [fa for fa, fbreaks in by_fund.items()
+                        if any((b.get("aiAnalysis") or {}).get("breakCategory") == cat for b in fbreaks)]
+            patterns.append({
+                "fundName": f"{count} breaks ({len(affected)} funds)",
+                "date": cat.replace("_", " ").title(),
+                "variance": count,
+            })
+
+    # Recommended next step — suggest the fund with highest variance
+    if fund_variances:
+        top = fund_variances[0]
+        next_step = f"Drill into {top[1]} ({top[0]}) to investigate ${top[2]:,.2f} in variances. Double-click the fund row to view Trial Balance."
+    else:
+        next_step = "Review breaks with lowest confidence scores first."
 
     return {
-        "trendSummary": trend,
-        "patternRecognition": patterns[:10],
+        "trendSummary": " ".join(parts),
+        "patternRecognition": patterns,
         "confidenceScore": round(avg_conf * 100, 1),
         "recommendedNextStep": next_step,
+    }
+
+
+def _build_trial_balance_analysis(breaks: list[dict], account: str) -> dict:
+    """Trial Balance: category variance drivers and drill-down priority."""
+    # Group breaks by GL category
+    by_category: dict[str, list] = {}
+    for b in breaks:
+        cat = b.get("glCategory", "Unknown")
+        by_category.setdefault(cat, []).append(b)
+
+    confidence_vals = []
+    for b in breaks:
+        c = (b.get("aiAnalysis") or {}).get("confidenceScore", 0)
+        if c:
+            confidence_vals.append(c)
+    avg_conf = (sum(confidence_vals) / len(confidence_vals)) if confidence_vals else 0
+
+    # Rank categories by absolute variance
+    cat_variances = []
+    for cat, cat_breaks in by_category.items():
+        total_var = sum(abs(b.get("variance", 0)) for b in cat_breaks)
+        cat_variances.append((cat, total_var, len(cat_breaks), cat_breaks))
+    cat_variances.sort(key=lambda x: x[1], reverse=True)
+
+    # Build trend narrative
+    total = sum(cv[1] for cv in cat_variances)
+    parts = [f"{len(breaks)} breaks across {len(by_category)} GL categories for this fund."]
+
+    if cat_variances:
+        top = cat_variances[0]
+        pct = (top[1] / total * 100) if total else 0
+        parts.append(f"Primary variance driver: {top[0]} with ${top[1]:,.2f} ({pct:.0f}% of total variance).")
+
+        # Get AI root cause for the largest category
+        top_breaks = top[3]
+        ai_summaries = [
+            (b.get("aiAnalysis") or {}).get("rootCauseSummary", "")
+            for b in top_breaks if (b.get("aiAnalysis") or {}).get("rootCauseSummary")
+        ]
+        if ai_summaries:
+            parts.append(ai_summaries[0])
+
+    # Show secondary drivers
+    if len(cat_variances) > 1:
+        secondary = [f"{cv[0]} (${cv[1]:,.2f})" for cv in cat_variances[1:3]]
+        parts.append(f"Other contributors: {', '.join(secondary)}.")
+
+    # Upward propagation
+    total_signed = sum(b.get("variance", 0) for b in breaks)
+    parts.append(f"Net category variance of ${total_signed:,.2f} propagates to the NAV-level difference.")
+
+    # Pattern recognition — show which categories have what type of break
+    patterns = []
+    for cat, var, count, cat_breaks in cat_variances[:3]:
+        ai_cat = "UNKNOWN"
+        for b in cat_breaks:
+            ai_cat = (b.get("aiAnalysis") or {}).get("breakCategory", "UNKNOWN")
+            break
+        patterns.append({
+            "fundName": cat,
+            "date": ai_cat.replace("_", " ").title(),
+            "variance": round(var, 2),
+        })
+
+    # Recommended next step — suggest drill into highest-variance category
+    if cat_variances:
+        top = cat_variances[0]
+        # Find the lowest-confidence category for priority
+        low_conf_cats = []
+        for cat, _, _, cat_breaks in cat_variances:
+            cat_confs = [(b.get("aiAnalysis") or {}).get("confidenceScore", 1) for b in cat_breaks]
+            avg_cat_conf = sum(cat_confs) / len(cat_confs) if cat_confs else 1
+            low_conf_cats.append((cat, avg_cat_conf))
+        low_conf_cats.sort(key=lambda x: x[1])
+
+        if low_conf_cats[0][1] < 0.7:
+            next_step = f"Investigate {low_conf_cats[0][0]} (lowest confidence at {low_conf_cats[0][1]*100:.0f}%). Double-click the category row to drill into positions."
+        else:
+            next_step = f"Drill into {top[0]} to investigate the ${top[1]:,.2f} variance at position level. Double-click the category row."
+    else:
+        next_step = "All categories within tolerance."
+
+    return {
+        "trendSummary": " ".join(parts),
+        "patternRecognition": patterns,
+        "confidenceScore": round(avg_conf * 100, 1),
+        "recommendedNextStep": next_step,
+    }
+
+
+def _build_position_level_analysis(breaks: list[dict], account: str, category: str) -> dict:
+    """Position Drill-Down: root cause per security, evidence chain, cross-position patterns."""
+    confidence_vals = []
+    root_causes = []
+    evidence_chain = []
+    actions = []
+    by_ai_category: dict[str, int] = {}
+
+    for b in breaks:
+        ai = b.get("aiAnalysis") or {}
+        c = ai.get("confidenceScore", 0)
+        if c:
+            confidence_vals.append(c)
+        if ai.get("rootCauseSummary"):
+            root_causes.append({
+                "security": b.get("securityId", ""),
+                "summary": ai["rootCauseSummary"],
+                "variance": b.get("variance", 0),
+            })
+        for step in ai.get("evidenceChain", []):
+            evidence_chain.append(step)
+        for act in ai.get("recommendedActions", []):
+            if act.get("description") and act["description"] not in [a.get("description") for a in actions]:
+                actions.append(act)
+        cat = ai.get("breakCategory", "UNKNOWN")
+        by_ai_category[cat] = by_ai_category.get(cat, 0) + 1
+
+    avg_conf = (sum(confidence_vals) / len(confidence_vals)) if confidence_vals else 0
+
+    # Build position-level trend narrative
+    total_var = sum(abs(b.get("variance", 0)) for b in breaks)
+    parts = [f"{len(breaks)} position-level breaks in {category} totaling ${total_var:,.2f}."]
+
+    # Show root cause summary from highest-variance break
+    if root_causes:
+        root_causes.sort(key=lambda x: abs(x["variance"]), reverse=True)
+        parts.append(root_causes[0]["summary"])
+
+    # Cross-position pattern recognition
+    if by_ai_category:
+        dominant = max(by_ai_category, key=by_ai_category.get)  # type: ignore[arg-type]
+        count = by_ai_category[dominant]
+        if count >= 2:
+            parts.append(f"Pattern: {count} positions share a {dominant.replace('_', ' ').lower()} root cause.")
+
+    # Build pattern recognition for similar securities
+    patterns = []
+    for rc in root_causes[:3]:
+        patterns.append({
+            "fundName": rc["security"] or category,
+            "date": rc["summary"][:50],
+            "variance": round(abs(rc["variance"]), 2),
+        })
+
+    # Recommended next step
+    if actions:
+        next_step = actions[0].get("description", "Review positions with largest variances.")
+    elif root_causes:
+        next_step = f"Verify {root_causes[0]['summary'][:80]}."
+    else:
+        next_step = "Review positions with largest variances for manual investigation."
+
+    return {
+        "trendSummary": " ".join(parts),
+        "patternRecognition": patterns,
+        "confidenceScore": round(avg_conf * 100, 1),
+        "recommendedNextStep": next_step,
+        "rootCauseSummary": root_causes[0]["summary"] if root_causes else None,
+        "evidenceChain": evidence_chain[:10],
     }
 
 

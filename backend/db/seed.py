@@ -244,6 +244,18 @@ def seed_ledger_subledger_reference_data(db):
 
         # Subscription Rec - ASSETS
         {"chartOfAccounts": "investone mufg", "glAccountNumber": "1300", "glAccountDescription": "CAPITAL SHARES RECEIVABLE", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Subscription Rec"},
+
+        # Generic GL accounts used by seeded fund data
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "1000", "glAccountDescription": "INVESTMENT AT MARKET", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Investment Cost"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "1200", "glAccountDescription": "RECEIVABLES", "ledgerSection": "ASSETS", "bsIncst": "BS", "conversionCategory": "Interest RecPay"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "2000", "glAccountDescription": "PAYABLES", "ledgerSection": "LIABILITIES", "bsIncst": "BS", "conversionCategory": "Expense RecPay"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "2100", "glAccountDescription": "DISTRIBUTION PAYABLE", "ledgerSection": "LIABILITIES", "bsIncst": "BS", "conversionCategory": "Distribution Pay"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "3000", "glAccountDescription": "NET ASSETS", "ledgerSection": "EQUITY", "bsIncst": "BS", "conversionCategory": "Capital"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "3100", "glAccountDescription": "CAPITAL STOCK", "ledgerSection": "EQUITY", "bsIncst": "BS", "conversionCategory": "Capital"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "4000", "glAccountDescription": "INVESTMENT INCOME", "ledgerSection": "INCOME", "bsIncst": "INCST", "conversionCategory": "Income"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "4100", "glAccountDescription": "REALIZED GAINS", "ledgerSection": "INCOME", "bsIncst": "INCST", "conversionCategory": "Realized GL"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "5000", "glAccountDescription": "MANAGEMENT FEES", "ledgerSection": "EXPENSE", "bsIncst": "INCST", "conversionCategory": "Expenses"},
+        {"chartOfAccounts": "investone mufg", "glAccountNumber": "5100", "glAccountDescription": "CUSTODY FEES", "ledgerSection": "EXPENSE", "bsIncst": "INCST", "conversionCategory": "Expenses"},
     ]
     db["refGLCategoryMapping"].insert_many(gl_category_mappings)
 
@@ -434,7 +446,20 @@ def seed_canonical_data(db):
             {"assetId": "UST10Y", "shares": 200000, "mv": 200000000, "bv": 195000000, "income": 12000, "price": 1000.00},
             {"assetId": "789456123", "shares": 50000, "mv": 50000000, "bv": 48000000, "income": 5000, "price": 1000.00},
         ],
+        inc_positions=[
+            {"assetId": "UST10Y", "shares": 200000, "mv": 200000000, "bv": 195000000, "income": 12000, "price": 1000.00},
+            {"assetId": "789456123", "shares": 50000, "mv": 50000000, "bv": 48000000, "income": 5000, "price": 1000.00},
+        ],
         ledger_cpu=[
+            {"gl": "1000", "bal": 250000000},
+            {"gl": "1100", "bal": 5000000},
+            {"gl": "1200", "bal": 1000000},
+            {"gl": "1300", "bal": 17000},
+            {"gl": "2000", "bal": -500000},
+            {"gl": "3000", "bal": -250000000},
+            {"gl": "4000", "bal": -5517000},
+        ],
+        ledger_inc=[
             {"gl": "1000", "bal": 250000000},
             {"gl": "1100", "bal": 5000000},
             {"gl": "1200", "bal": 1000000},
@@ -451,7 +476,19 @@ def seed_canonical_data(db):
         positions=[
             {"assetId": "UST10Y", "shares": 180000, "mv": 180000000, "bv": 175000000, "income": 8000, "price": 1000.00},
         ],
+        inc_positions=[
+            {"assetId": "UST10Y", "shares": 180000, "mv": 180000000, "bv": 175000000, "income": 8000, "price": 1000.00},
+        ],
         ledger_cpu=[
+            {"gl": "1000", "bal": 180000000},
+            {"gl": "1100", "bal": 3000000},
+            {"gl": "1200", "bal": 500000},
+            {"gl": "1300", "bal": 8000},
+            {"gl": "2000", "bal": -300000},
+            {"gl": "3000", "bal": -180000000},
+            {"gl": "4000", "bal": -3208000},
+        ],
+        ledger_inc=[
             {"gl": "1000", "bal": 180000000},
             {"gl": "1100", "bal": 3000000},
             {"gl": "1200", "bal": 500000},
@@ -468,7 +505,19 @@ def seed_canonical_data(db):
         positions=[
             {"assetId": "UST10Y", "shares": 75000, "mv": 75000000, "bv": 73000000, "income": 3000, "price": 1000.00},
         ],
+        inc_positions=[
+            {"assetId": "UST10Y", "shares": 75000, "mv": 75000000, "bv": 73000000, "income": 3000, "price": 1000.00},
+        ],
         ledger_cpu=[
+            {"gl": "1000", "bal": 75000000},
+            {"gl": "1100", "bal": 1000000},
+            {"gl": "1200", "bal": 200000},
+            {"gl": "1300", "bal": 3000},
+            {"gl": "2000", "bal": -100000},
+            {"gl": "3000", "bal": -75000000},
+            {"gl": "4000", "bal": -1103000},
+        ],
+        ledger_inc=[
             {"gl": "1000", "bal": 75000000},
             {"gl": "1100", "bal": 1000000},
             {"gl": "1200", "bal": 200000},
@@ -484,6 +533,9 @@ def seed_canonical_data(db):
         cpu_nav=45000000.03, inc_nav=45000000,
         positions=[
             {"assetId": "789456123", "shares": 45000, "mv": 45000000.03, "bv": 43000000, "income": 2000, "price": 1000.00},
+        ],
+        inc_positions=[
+            {"assetId": "789456123", "shares": 45000, "mv": 45000000, "bv": 43000000, "income": 2000, "price": 1000.00},
         ],
         ledger_cpu=[
             {"gl": "1000", "bal": 45000000.03},
@@ -513,7 +565,19 @@ def seed_canonical_data(db):
             {"assetId": "MSFT", "shares": 400000, "mv": 180000000, "bv": 160000000, "income": 0, "price": 450.00},
             {"assetId": "GOOGL", "shares": 300000, "mv": 120000000, "bv": 100000000, "income": 0, "price": 400.00},
         ],
+        inc_positions=[
+            {"assetId": "AAPL", "shares": 500000, "mv": 200000000, "bv": 180000000, "income": 0, "price": 400.00},
+            {"assetId": "MSFT", "shares": 400000, "mv": 180000000, "bv": 160000000, "income": 0, "price": 450.00},
+            {"assetId": "GOOGL", "shares": 300000, "mv": 120000000, "bv": 100000000, "income": 0, "price": 400.00},
+        ],
         ledger_cpu=[
+            {"gl": "1000", "bal": 500000000},
+            {"gl": "1100", "bal": 10000000},
+            {"gl": "2000", "bal": -2000000},
+            {"gl": "3000", "bal": -500000000},
+            {"gl": "4000", "bal": -8000000},
+        ],
+        ledger_inc=[
             {"gl": "1000", "bal": 500000000},
             {"gl": "1100", "bal": 10000000},
             {"gl": "2000", "bal": -2000000},
