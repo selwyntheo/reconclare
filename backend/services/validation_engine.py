@@ -143,23 +143,38 @@ class ValidationEngine:
                 check_start = time.time()
                 check_def = get_check_def(check_type)
 
-                # Execute the specific check
-                result, breaks = self._execute_check(
-                    check_type=check_type,
-                    event_id=event_id,
-                    inc_event_id=inc_event_id,
-                    valuation_dt=valuation_dt,
-                    fund_account=fund_account,
-                    fund_name=fund_name,
-                    run_id=run_id,
-                )
+                try:
+                    # Execute the specific check
+                    result, breaks = self._execute_check(
+                        check_type=check_type,
+                        event_id=event_id,
+                        inc_event_id=inc_event_id,
+                        valuation_dt=valuation_dt,
+                        fund_account=fund_account,
+                        fund_name=fund_name,
+                        run_id=run_id,
+                    )
 
-                check_duration = int((time.time() - check_start) * 1000)
-                result.durationMs = check_duration
+                    check_duration = int((time.time() - check_start) * 1000)
+                    result.durationMs = check_duration
 
-                all_results.append(result)
-                if breaks:
-                    all_breaks.extend(breaks)
+                    all_results.append(result)
+                    if breaks:
+                        all_breaks.extend(breaks)
+                        fund_has_break = True
+                except Exception as exc:
+                    check_duration = int((time.time() - check_start) * 1000)
+                    error_result = ValidationResultDoc(
+                        checkType=check_type,
+                        checkName=check_def["name"],
+                        level=check_def["level"],
+                        fundAccount=fund_account,
+                        fundName=fund_name,
+                        status=ValidationResultStatus.FAILED,
+                        durationMs=check_duration,
+                        errorMessage=str(exc),
+                    )
+                    all_results.append(error_result)
                     fund_has_break = True
 
             if fund_has_break:
@@ -572,7 +587,19 @@ class ValidationEngine:
         service = DerivedSubledgerService()
 
         # Get the ledger to subledger summary comparison
-        summary = service.get_ledger_subledger_summary(fund_account, valuation_dt, "CPU")
+        try:
+            summary = service.get_ledger_subledger_summary(fund_account, valuation_dt, "CPU")
+        except Exception as exc:
+            # If derived subledger computation fails, return an error result
+            return ValidationResultDoc(
+                checkType="LEDGER_TO_SUBLEDGER",
+                checkName=check_def["name"],
+                level=check_def["level"],
+                fundAccount=fund_account,
+                fundName=fund_name,
+                status=ValidationResultStatus.FAILED,
+                errorMessage=f"Subledger computation failed: {exc}",
+            ), []
 
         matched = 0
         total_var = 0.0

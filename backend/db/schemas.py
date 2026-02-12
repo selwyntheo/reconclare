@@ -349,6 +349,7 @@ class ValidationResultDoc(BaseModel):
     totalVariance: float = 0
     maxVariance: float = 0
     durationMs: int = 0
+    errorMessage: Optional[str] = None
 
 
 class ValidationRunDoc(BaseModel):

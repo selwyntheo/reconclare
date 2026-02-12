@@ -4,7 +4,7 @@
  */
 
 import { useCallback, useRef, useState } from 'react';
-import { MappingChange, GLAccountMapping } from '../../../types/glMapping';
+import { MappingChange } from '../../../types/glMapping';
 
 export interface UndoRedoState {
   canUndo: boolean;

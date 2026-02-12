@@ -3,7 +3,7 @@
  * Main component combining summary grid and drill-down panels
  * Per spec Sections 2-7
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -40,7 +40,7 @@ const LedgerSubledgerView: React.FC<LedgerSubledgerViewProps> = ({
   const [totals, setTotals] = useState({ ledger: 0, subLedger: 0, variance: 0 });
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const data = await fetchLedgerSubledgerSummary(fundAccount, valuationDt);
@@ -51,11 +51,11 @@ const LedgerSubledgerView: React.FC<LedgerSubledgerViewProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [fundAccount, valuationDt]);
 
   useEffect(() => {
     loadData();
-  }, [fundAccount, valuationDt]);
+  }, [loadData]);
 
   const handleCategorySelect = (category: string) => {
     setSelectedCategory(selectedCategory === category ? null : category);

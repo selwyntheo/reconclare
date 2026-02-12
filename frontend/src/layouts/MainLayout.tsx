@@ -39,7 +39,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { label: 'Event Dashboard', icon: <DashboardIcon />, path: '/' },
+  { label: 'Event Dashboard', icon: <DashboardIcon />, path: '/events' },
   { label: 'Human Review', icon: <RateReviewIcon />, path: '/review' },
   { label: 'Ledger Mapping', icon: <AccountBalanceWalletIcon />, path: '/ledger-mapping' },
   { label: 'GL Account Mapping', icon: <SwapHorizIcon />, path: '/gl-account-mapping' },
@@ -139,7 +139,9 @@ const MainLayout: React.FC = () => {
         <Box sx={{ mt: 1 }}>
           <List>
             {navItems.map((item) => {
-              const active = location.pathname === item.path;
+              const active = item.path === '/events'
+                ? location.pathname === '/events' || location.pathname === '/' || location.pathname.startsWith('/events/')
+                : location.pathname === item.path;
               return (
                 <ListItemButton
                   key={item.path}

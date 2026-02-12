@@ -26,7 +26,8 @@ class TestLedgerSubledgerEndpoints:
     def client(self):
         """Create test client."""
         from api.main import app
-        return TestClient(app)
+        with TestClient(app) as c:
+            yield c
 
     def test_ledger_subledger_summary_endpoint(self, client, mock_service):
         """GET /api/funds/{account}/ledger-subledger returns summary grid."""

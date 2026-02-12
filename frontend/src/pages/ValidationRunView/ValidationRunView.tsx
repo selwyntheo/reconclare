@@ -30,7 +30,7 @@ import SmartToyIcon from '@mui/icons-material/SmartToy';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbDownIcon from '@mui/icons-material/ThumbDown';
 import { fetchEvent, fetchRun, fetchRunResults, fetchBreaks, fetchValidationChecks } from '../../services/api';
-import { ValidationResult, BreakRecord, CheckType, ConversionEvent, ValidationRun } from '../../types';
+import { ValidationResult, BreakRecord, ConversionEvent, ValidationRun } from '../../types';
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);

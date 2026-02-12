@@ -18,8 +18,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Divider,
-  LinearProgress,
   ToggleButton,
   ToggleButtonGroup,
   alpha,
@@ -59,8 +57,8 @@ const HumanReview: React.FC = () => {
   const [resolutionCategory, setResolutionCategory] = useState<BreakCategory | ''>('');
   const [reviewAction, setReviewAction] = useState<ReviewAction | null>(null);
   const [reviewableBreaks, setReviewableBreaks] = useState<BreakRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const [, setLoading] = useState(true);
+  const [, setSubmitting] = useState(false);
 
   const loadBreaks = async () => {
     try {

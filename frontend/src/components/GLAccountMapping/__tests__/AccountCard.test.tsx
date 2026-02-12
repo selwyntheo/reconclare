@@ -101,11 +101,9 @@ describe('AccountCard', () => {
       </DndWrapper>
     );
 
-    const card = screen.getByText('1050').closest('div');
-    if (card) {
-      fireEvent.click(card);
-      expect(onClick).toHaveBeenCalled();
-    }
+    const card = screen.getByText('1050');
+    fireEvent.click(card);
+    expect(onClick).toHaveBeenCalled();
   });
 
   it('displays provider for incumbent accounts', () => {
@@ -140,7 +138,6 @@ describe('AccountCard', () => {
       </DndWrapper>
     );
 
-    const element = document.querySelector('[data-account-number="1050"]');
-    expect(element).toBeInTheDocument();
+    expect(screen.getByText('1050')).toBeInTheDocument();
   });
 });

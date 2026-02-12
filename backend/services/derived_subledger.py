@@ -568,7 +568,7 @@ class DerivedSubledgerService:
         }
         """
         # Get GL to category mappings
-        mappings = list(self.db["refGLCategoryMapping"].find({
+        mappings = list(self.db[COLLECTIONS["refGLCategoryMapping"]].find({
             "conversionCategory": category,
         }))
         gl_numbers = [m["glAccountNumber"] for m in mappings]
@@ -616,7 +616,7 @@ class DerivedSubledgerService:
     ) -> dict[str, float]:
         """Get ledger values aggregated by conversion category."""
         # Get all GL to category mappings
-        mappings = list(self.db["refGLCategoryMapping"].find({}))
+        mappings = list(self.db[COLLECTIONS["refGLCategoryMapping"]].find({}))
         gl_to_category = {m["glAccountNumber"]: m["conversionCategory"] for m in mappings}
 
         # Get ledger entries

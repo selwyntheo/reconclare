@@ -14,14 +14,11 @@ import {
   MenuItem,
   Alert,
   Snackbar,
-  alpha,
   useTheme,
   SelectChangeEvent,
 } from '@mui/material';
 import {
   GLAccountMapping,
-  IncumbentGLAccount,
-  EagleGLAccount,
   MappingChange,
   DropResult,
   MappingType,
@@ -311,7 +308,7 @@ const GLMappingWorkspace: React.FC<GLMappingWorkspaceProps> = ({
   }, [eventId, selectedProvider, setLoading, setError, setIncumbentAccounts, setEagleAccounts, setMappings]);
 
   // Handle save
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     setSaving(true);
     try {
       // Process pending changes
@@ -364,7 +361,7 @@ const GLMappingWorkspace: React.FC<GLMappingWorkspaceProps> = ({
     } finally {
       setSaving(false);
     }
-  };
+  }, [state.pendingChanges, eventId, selectedProvider, setMappings, clearPendingChanges, undoRedoActions, setSnackbar, setSaving]);
 
   // Handle discard
   const handleDiscard = async () => {
@@ -380,7 +377,7 @@ const GLMappingWorkspace: React.FC<GLMappingWorkspaceProps> = ({
   };
 
   // Handle undo
-  const handleUndo = () => {
+  const handleUndo = useCallback(() => {
     const changes = undoRedoActions.undo();
     if (changes) {
       // Apply inverse changes
@@ -395,10 +392,10 @@ const GLMappingWorkspace: React.FC<GLMappingWorkspaceProps> = ({
       }
       updateLines();
     }
-  };
+  }, [undoRedoActions, addMapping, deleteMapping, updateLines]);
 
   // Handle redo
-  const handleRedo = () => {
+  const handleRedo = useCallback(() => {
     const changes = undoRedoActions.redo();
     if (changes) {
       for (const change of changes) {
@@ -410,7 +407,7 @@ const GLMappingWorkspace: React.FC<GLMappingWorkspaceProps> = ({
       }
       updateLines();
     }
-  };
+  }, [undoRedoActions, addMapping, deleteMapping, updateLines]);
 
   // Handle export
   const handleExport = () => {

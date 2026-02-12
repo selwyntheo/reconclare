@@ -9,6 +9,14 @@ import {
   UnsettledTotalsResponse,
   LedgerCategory,
   GLCategoryMapping,
+  NavCompareRow,
+  CrossCheckResult,
+  TrialBalanceCategoryRow,
+  SubledgerCheckResult,
+  PositionCompareRow,
+  TaxLotRow,
+  BasisLotRow,
+  AICommentaryData,
 } from '../types';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -225,6 +233,91 @@ export async function deleteGLCategoryMapping(
   const params = `?chart_of_accounts=${encodeURIComponent(chartOfAccounts)}`;
   return fetchJSON(`/api/reference/gl-category-mappings/${encodeURIComponent(glAccountNumber)}${params}`, {
     method: 'DELETE',
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// PROCESS FLOW DRILL-DOWN ENDPOINTS
+// ══════════════════════════════════════════════════════════════
+
+// ── NAV Compare ────────────────────────────────────────────
+
+export async function fetchNavCompare(eventId: string, valuationDt: string): Promise<NavCompareRow[]> {
+  return fetchJSON<NavCompareRow[]>(`/api/events/${eventId}/nav-compare?valuationDt=${valuationDt}`);
+}
+
+export async function fetchNavCrossChecks(eventId: string, account: string, valuationDt: string): Promise<CrossCheckResult> {
+  return fetchJSON<CrossCheckResult>(`/api/events/${eventId}/nav-compare/${account}/cross-checks?valuationDt=${valuationDt}`);
+}
+
+// ── Trial Balance Compare ──────────────────────────────────
+
+export async function fetchTrialBalanceCompare(account: string, valuationDt: string): Promise<TrialBalanceCategoryRow[]> {
+  return fetchJSON<TrialBalanceCategoryRow[]>(`/api/funds/${account}/trial-balance-compare?valuationDt=${valuationDt}`);
+}
+
+export async function fetchSubledgerCheck(account: string, category: string, valuationDt: string): Promise<SubledgerCheckResult> {
+  return fetchJSON<SubledgerCheckResult>(
+    `/api/funds/${account}/trial-balance-compare/${encodeURIComponent(category)}/subledger-check?valuationDt=${valuationDt}`
+  );
+}
+
+// ── Position Compare ───────────────────────────────────────
+
+export async function fetchPositionCompare(
+  account: string,
+  valuationDt: string,
+  category: string
+): Promise<PositionCompareRow[]> {
+  return fetchJSON<PositionCompareRow[]>(
+    `/api/funds/${account}/position-compare?valuationDt=${valuationDt}&category=${encodeURIComponent(category)}`
+  );
+}
+
+export async function fetchTaxLots(
+  account: string,
+  assetId: string,
+  valuationDt: string
+): Promise<TaxLotRow[]> {
+  return fetchJSON<TaxLotRow[]>(
+    `/api/funds/${account}/position-compare/${encodeURIComponent(assetId)}/tax-lots?valuationDt=${valuationDt}`
+  );
+}
+
+// ── Basis Lot Check ────────────────────────────────────────
+
+export async function fetchBasisLotCheck(account: string, valuationDt: string): Promise<BasisLotRow[]> {
+  return fetchJSON<BasisLotRow[]>(`/api/funds/${account}/basis-lot-check?valuationDt=${valuationDt}`);
+}
+
+// ── Available Dates & AI Analysis ──────────────────────────
+
+export async function fetchAvailableDates(eventId: string): Promise<string[]> {
+  return fetchJSON<string[]>(`/api/events/${eventId}/available-dates`);
+}
+
+export async function fetchAIAnalysis(
+  eventId: string,
+  account?: string,
+  category?: string
+): Promise<AICommentaryData> {
+  const params = new URLSearchParams({ eventId });
+  if (account) params.set('account', account);
+  if (category) params.set('category', category);
+  return fetchJSON<AICommentaryData>(`/api/ai/analysis?${params.toString()}`);
+}
+
+// ── Sequential Validation ──────────────────────────────────
+
+export async function runSequentialValidation(
+  eventId: string,
+  valuationDt: string,
+  checkSuite: string[],
+  fundSelection?: string
+) {
+  return fetchJSON<any>('/api/validation/run-sequential', {
+    method: 'POST',
+    body: JSON.stringify({ eventId, valuationDt, checkSuite, fundSelection }),
   });
 }
 

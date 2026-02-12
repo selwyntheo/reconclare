@@ -5,14 +5,12 @@
 
 import { useCallback, useState } from 'react';
 import {
-  DndContext,
   DragEndEvent,
   DragStartEvent,
   DragOverEvent,
   PointerSensor,
   useSensor,
   useSensors,
-  DragOverlay,
 } from '@dnd-kit/core';
 import {
   DragItem,

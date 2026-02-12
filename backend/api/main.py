@@ -18,8 +18,12 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional
 
+import asyncio
+import json
+
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 
 from config.settings import settings
 from db.mongodb import get_async_db, get_sync_db, close_async_db, COLLECTIONS
@@ -37,7 +41,17 @@ from services.derived_subledger import DerivedSubledgerService
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
+    # Startup — ensure compound indexes for comparison query performance
+    db = get_async_db()
+    await db[COLLECTIONS["navSummary"]].create_index(
+        [("valuationDt", 1), ("account", 1), ("userBank", 1)], background=True
+    )
+    await db[COLLECTIONS["ledger"]].create_index(
+        [("valuationDt", 1), ("account", 1), ("userBank", 1)], background=True
+    )
+    await db[COLLECTIONS["dataSubLedgerPosition"]].create_index(
+        [("valuationDt", 1), ("account", 1), ("userBank", 1)], background=True
+    )
     yield
     # Shutdown
     await close_async_db()
@@ -153,8 +167,11 @@ async def run_validation(req: RunValidationRequest):
         )
 
         # After validation, run AI analysis on detected breaks
-        ai_service = AIAnalysisService()
-        ai_results = ai_service.analyze_run_breaks(run_doc.runId)
+        try:
+            ai_service = AIAnalysisService()
+            ai_service.analyze_run_breaks(run_doc.runId)
+        except Exception:
+            pass  # AI analysis is best-effort; don't block validation response
 
         # Refresh the run doc to include updated results
         db = get_sync_db()
@@ -897,6 +914,551 @@ async def validate_mappings(event_id: str):
         "warnings": warnings,
         "mappingCount": len(mappings),
     }
+
+
+# ══════════════════════════════════════════════════════════════
+# Process Flow Drill-Down Endpoints
+# ══════════════════════════════════════════════════════════════
+
+VARIANCE_THRESHOLD = 0.01
+
+
+async def _get_event_or_404(db, event_id: str) -> dict:
+    event = await db[COLLECTIONS["events"]].find_one({"eventId": event_id}, {"_id": 0})
+    if not event:
+        raise HTTPException(status_code=404, detail=f"Event {event_id} not found")
+    return event
+
+
+# ── 1. NAV Compare ──────────────────────────────────────────
+
+@app.get("/api/events/{event_id}/nav-compare")
+async def nav_compare(event_id: str, valuationDt: Optional[str] = None):
+    """NAV TNA comparison between CPU and incumbent, aggregated by fund account."""
+    db = get_async_db()
+    event = await _get_event_or_404(db, event_id)
+    fund_accounts = [f["account"] for f in event.get("funds", [])]
+    if not fund_accounts:
+        return []
+
+    base_query: dict = {"account": {"$in": fund_accounts}}
+    if valuationDt:
+        base_query["valuationDt"] = valuationDt
+
+    cpu_navs = await db[COLLECTIONS["navSummary"]].find(
+        {**base_query, "userBank": "CPU"}, {"_id": 0}
+    ).to_list(2000)
+    inc_navs = await db[COLLECTIONS["navSummary"]].find(
+        {**base_query, "userBank": "INCUMBENT"}, {"_id": 0}
+    ).to_list(2000)
+
+    # Aggregate by account
+    cpu_by_acct: dict[str, float] = {}
+    for n in cpu_navs:
+        acct = n.get("account", "")
+        cpu_by_acct[acct] = cpu_by_acct.get(acct, 0) + n.get("netAssets", 0)
+
+    inc_by_acct: dict[str, float] = {}
+    for n in inc_navs:
+        acct = n.get("account", "")
+        inc_by_acct[acct] = inc_by_acct.get(acct, 0) + n.get("netAssets", 0)
+
+    fund_name_map = {f["account"]: f.get("fundName", f["account"]) for f in event.get("funds", [])}
+    rows = []
+    for acct in sorted(set(list(cpu_by_acct.keys()) + list(inc_by_acct.keys()))):
+        cpu_tna = cpu_by_acct.get(acct, 0)
+        inc_tna = inc_by_acct.get(acct, 0)
+        diff = cpu_tna - inc_tna
+        bp = (diff / inc_tna * 10000) if inc_tna != 0 else 0
+        status = "pass" if abs(diff) <= VARIANCE_THRESHOLD else ("marginal" if abs(bp) < 5 else "break")
+        rows.append({
+            "valuationDt": valuationDt or "",
+            "account": acct,
+            "accountName": fund_name_map.get(acct, acct),
+            "incumbentTNA": inc_tna,
+            "bnyTNA": cpu_tna,
+            "tnaDifference": diff,
+            "tnaDifferenceBP": round(bp, 2),
+            "validationStatus": status,
+        })
+    return rows
+
+
+# ── 2. NAV Cross-Checks ────────────────────────────────────
+
+@app.get("/api/events/{event_id}/nav-compare/{account}/cross-checks")
+async def nav_cross_checks(event_id: str, account: str, valuationDt: Optional[str] = None):
+    """Cross-check validations: Ledger BS vs NAV, Ledger INCST vs BS remainder."""
+    db = get_async_db()
+    base_query: dict = {"account": account}
+    if valuationDt:
+        base_query["valuationDt"] = valuationDt
+
+    # Get GL category mappings to determine BS vs INCST
+    gl_mappings = await db["refGLCategoryMapping"].find({}, {"_id": 0}).to_list(200)
+    bs_gl_numbers = {m["glAccountNumber"] for m in gl_mappings if m.get("bsIncst") == "BS"}
+    incst_gl_numbers = {m["glAccountNumber"] for m in gl_mappings if m.get("bsIncst") == "INCST"}
+
+    # Fetch CPU ledger
+    cpu_ledger = await db[COLLECTIONS["ledger"]].find(
+        {**base_query, "userBank": "CPU"}, {"_id": 0}
+    ).to_list(500)
+
+    bs_total = sum(e.get("endingBalance", 0) for e in cpu_ledger
+                   if e.get("glAccountNumber", e.get("eagleLedgerAcct", "")) in bs_gl_numbers)
+    incst_total = sum(e.get("endingBalance", 0) for e in cpu_ledger
+                      if e.get("glAccountNumber", e.get("eagleLedgerAcct", "")) in incst_gl_numbers)
+
+    # NAV net assets
+    navs = await db[COLLECTIONS["navSummary"]].find(
+        {**base_query, "userBank": "CPU"}, {"_id": 0}
+    ).to_list(100)
+    nav_net_assets = sum(n.get("netAssets", 0) for n in navs)
+
+    bs_diff = bs_total - nav_net_assets
+    incst_diff = incst_total - (bs_total - nav_net_assets)
+
+    return {
+        "bsCheck": {
+            "label": "Ledger BS Compare Check",
+            "lhsValue": bs_total,
+            "rhsValue": nav_net_assets,
+            "difference": bs_diff,
+            "validationStatus": "pass" if abs(bs_diff) <= VARIANCE_THRESHOLD else "break",
+        },
+        "incstCheck": {
+            "label": "Ledger INCST Compare Check",
+            "lhsValue": incst_total,
+            "rhsValue": bs_total - nav_net_assets,
+            "difference": incst_diff,
+            "validationStatus": "pass" if abs(incst_diff) <= VARIANCE_THRESHOLD else "break",
+        },
+    }
+
+
+# ── 3. Trial Balance Compare ───────────────────────────────
+
+@app.get("/api/funds/{account}/trial-balance-compare")
+async def trial_balance_compare(account: str, valuationDt: Optional[str] = None):
+    """Ledger balance comparison grouped by GL conversion category."""
+    db = get_async_db()
+    base_query: dict = {"account": account}
+    if valuationDt:
+        base_query["valuationDt"] = valuationDt
+
+    gl_mappings = await db["refGLCategoryMapping"].find({}, {"_id": 0}).to_list(200)
+    gl_to_cat = {m["glAccountNumber"]: m["conversionCategory"] for m in gl_mappings}
+
+    cpu_ledger = await db[COLLECTIONS["ledger"]].find(
+        {**base_query, "userBank": "CPU"}, {"_id": 0}
+    ).to_list(500)
+    inc_ledger = await db[COLLECTIONS["ledger"]].find(
+        {**base_query, "userBank": "INCUMBENT"}, {"_id": 0}
+    ).to_list(500)
+
+    cpu_by_cat: dict[str, float] = {}
+    for e in cpu_ledger:
+        gl = e.get("glAccountNumber", e.get("eagleLedgerAcct", ""))
+        cat = gl_to_cat.get(gl, "OTHER")
+        cpu_by_cat[cat] = cpu_by_cat.get(cat, 0) + e.get("endingBalance", 0)
+
+    inc_by_cat: dict[str, float] = {}
+    for e in inc_ledger:
+        gl = e.get("glAccountNumber", e.get("eagleLedgerAcct", ""))
+        cat = gl_to_cat.get(gl, "OTHER")
+        inc_by_cat[cat] = inc_by_cat.get(cat, 0) + e.get("endingBalance", 0)
+
+    all_cats = sorted(set(list(cpu_by_cat.keys()) + list(inc_by_cat.keys())))
+    rows = []
+    for cat in all_cats:
+        cpu_bal = cpu_by_cat.get(cat, 0)
+        inc_bal = inc_by_cat.get(cat, 0)
+        diff = cpu_bal - inc_bal
+        bp = (diff / inc_bal * 10000) if inc_bal != 0 else 0
+        status = "pass" if abs(diff) <= VARIANCE_THRESHOLD else ("marginal" if abs(bp) < 5 else "break")
+        rows.append({
+            "valuationDt": valuationDt or "",
+            "account": account,
+            "category": cat,
+            "incumbentBalance": inc_bal,
+            "bnyBalance": cpu_bal,
+            "balanceDiff": diff,
+            "balanceDiffBP": round(bp, 2),
+            "validationStatus": status,
+        })
+    return rows
+
+
+# ── 4. Subledger Compare Check ─────────────────────────────
+
+@app.get("/api/funds/{account}/trial-balance-compare/{category}/subledger-check")
+async def subledger_check(account: str, category: str, valuationDt: Optional[str] = None):
+    """Compare ledger balance against derived subledger rollup for a category."""
+    db = get_async_db()
+    base_query: dict = {"account": account}
+    if valuationDt:
+        base_query["valuationDt"] = valuationDt
+
+    gl_mappings = await db["refGLCategoryMapping"].find(
+        {"conversionCategory": category}, {"_id": 0}
+    ).to_list(200)
+    cat_gl_numbers = {m["glAccountNumber"] for m in gl_mappings}
+
+    cpu_ledger = await db[COLLECTIONS["ledger"]].find(
+        {**base_query, "userBank": "CPU"}, {"_id": 0}
+    ).to_list(500)
+    ledger_total = sum(
+        e.get("endingBalance", 0) for e in cpu_ledger
+        if e.get("glAccountNumber", e.get("eagleLedgerAcct", "")) in cat_gl_numbers
+    )
+
+    def _get_subledger():
+        service = DerivedSubledgerService()
+        val_dt = valuationDt or "2026-02-07"
+        return service.get_ledger_subledger_summary(account, val_dt, "CPU")
+
+    loop = asyncio.get_event_loop()
+    subledger_data = await loop.run_in_executor(None, _get_subledger)
+
+    subledger_total = 0.0
+    if isinstance(subledger_data, dict):
+        for row in subledger_data.get("rows", []):
+            if row.get("category", "") == category:
+                subledger_total = row.get("subLedger", 0) or 0
+                break
+
+    diff = ledger_total - subledger_total
+    return {
+        "category": category,
+        "ledgerValue": ledger_total,
+        "subledgerValue": subledger_total,
+        "difference": diff,
+        "validationStatus": "pass" if abs(diff) <= VARIANCE_THRESHOLD else "break",
+    }
+
+
+# ── 5. Position Compare ────────────────────────────────────
+
+@app.get("/api/funds/{account}/position-compare")
+async def position_compare(account: str, valuationDt: Optional[str] = None, category: Optional[str] = None):
+    """Position-level comparison between CPU and incumbent by asset."""
+    db = get_async_db()
+    base_query: dict = {"account": account}
+    if valuationDt:
+        base_query["valuationDt"] = valuationDt
+
+    cpu_positions = await db[COLLECTIONS["dataSubLedgerPosition"]].find(
+        {**base_query, "userBank": "CPU"}, {"_id": 0}
+    ).to_list(1000)
+    inc_positions = await db[COLLECTIONS["dataSubLedgerPosition"]].find(
+        {**base_query, "userBank": "INCUMBENT"}, {"_id": 0}
+    ).to_list(1000)
+
+    def _pos_key(p: dict) -> str:
+        return f"{p.get('assetId', '')}|{p.get('longShortInd', 'L')}"
+
+    cpu_map: dict[str, dict] = {}
+    for p in cpu_positions:
+        key = _pos_key(p)
+        if key not in cpu_map:
+            cpu_map[key] = {"assetId": p.get("assetId", ""), "longShortInd": p.get("longShortInd", "L"),
+                            "shareClass": p.get("shareClass", ""), "secType": p.get("secType", ""),
+                            "issueDescription": p.get("issueDescription", ""), "cusip": p.get("cusip", ""),
+                            "shares": 0, "marketValue": 0, "bookValue": 0}
+        cpu_map[key]["shares"] += p.get("posShares", 0)
+        cpu_map[key]["marketValue"] += p.get("posMarketValueBase", 0)
+        cpu_map[key]["bookValue"] += p.get("posBookValueBase", 0)
+
+    inc_map: dict[str, dict] = {}
+    for p in inc_positions:
+        key = _pos_key(p)
+        if key not in inc_map:
+            inc_map[key] = {"assetId": p.get("assetId", ""), "longShortInd": p.get("longShortInd", "L"),
+                            "shareClass": p.get("shareClass", ""), "secType": p.get("secType", ""),
+                            "issueDescription": p.get("issueDescription", ""), "cusip": p.get("cusip", ""),
+                            "shares": 0, "marketValue": 0, "bookValue": 0}
+        inc_map[key]["shares"] += p.get("posShares", 0)
+        inc_map[key]["marketValue"] += p.get("posMarketValueBase", 0)
+        inc_map[key]["bookValue"] += p.get("posBookValueBase", 0)
+
+    all_keys = sorted(set(list(cpu_map.keys()) + list(inc_map.keys())))
+    rows = []
+    for key in all_keys:
+        cpu = cpu_map.get(key, {"shares": 0, "marketValue": 0, "bookValue": 0})
+        inc = inc_map.get(key, {"shares": 0, "marketValue": 0, "bookValue": 0})
+        ref = cpu_map.get(key) or inc_map.get(key) or {}
+        mv_var = cpu["marketValue"] - inc["marketValue"]
+        bv_var = cpu["bookValue"] - inc["bookValue"]
+        shares_var = cpu["shares"] - inc["shares"]
+        has_break = abs(mv_var) > VARIANCE_THRESHOLD or abs(bv_var) > VARIANCE_THRESHOLD or abs(shares_var) > VARIANCE_THRESHOLD
+        rows.append({
+            "assetId": ref.get("assetId", key.split("|")[0]),
+            "securityType": ref.get("secType", ""),
+            "issueDescription": ref.get("issueDescription", ""),
+            "cusip": ref.get("cusip", ""),
+            "longShortInd": ref.get("longShortInd", "L"),
+            "shareClass": ref.get("shareClass", ""),
+            "comparisonFields": [
+                {"fieldName": "Market Value", "incumbent": inc["marketValue"], "bny": cpu["marketValue"], "variance": mv_var},
+                {"fieldName": "Book Value", "incumbent": inc["bookValue"], "bny": cpu["bookValue"], "variance": bv_var},
+                {"fieldName": "Shares", "incumbent": inc["shares"], "bny": cpu["shares"], "variance": shares_var},
+            ],
+            "validationStatus": "break" if has_break else "pass",
+        })
+    return rows
+
+
+# ── 6. Tax Lot Detail ──────────────────────────────────────
+
+@app.get("/api/funds/{account}/position-compare/{asset_id}/tax-lots")
+async def tax_lot_detail(account: str, asset_id: str, valuationDt: Optional[str] = None):
+    """Tax lot detail comparison for a specific asset."""
+    db = get_async_db()
+    base_query: dict = {"account": account, "assetId": asset_id}
+    if valuationDt:
+        base_query["valuationDt"] = valuationDt
+
+    cpu_lots = await db[COLLECTIONS["dataSubLedgerTrans"]].find(
+        {**base_query, "userBank": "CPU"}, {"_id": 0}
+    ).to_list(500)
+    inc_lots = await db[COLLECTIONS["dataSubLedgerTrans"]].find(
+        {**base_query, "userBank": "INCUMBENT"}, {"_id": 0}
+    ).to_list(500)
+
+    # Fallback: if no userBank filter produced results
+    if not cpu_lots and not inc_lots:
+        cpu_lots = await db[COLLECTIONS["dataSubLedgerTrans"]].find(
+            base_query, {"_id": 0}
+        ).to_list(500)
+
+    def _make_field(cpu_val: float, inc_val: float) -> dict:
+        return {"incumbent": inc_val, "bny": cpu_val, "variance": cpu_val - inc_val}
+
+    # Match lots by transactionId
+    cpu_by_txn = {l.get("transactionId", ""): l for l in cpu_lots}
+    inc_by_txn = {l.get("transactionId", ""): l for l in inc_lots}
+    all_txns = sorted(set(list(cpu_by_txn.keys()) + list(inc_by_txn.keys())))
+
+    rows = []
+    for txn in all_txns:
+        c = cpu_by_txn.get(txn, {})
+        i = inc_by_txn.get(txn, {})
+        rows.append({
+            "transactionId": txn,
+            "lotTradeDate": c.get("lotTradeDate", i.get("lotTradeDate", "")),
+            "lotSettleDate": c.get("lotSettleDate", i.get("lotSettleDate", "")),
+            "shares": _make_field(c.get("shares", 0), i.get("shares", 0)),
+            "originalFace": _make_field(c.get("originalFace", 0), i.get("originalFace", 0)),
+            "origCostLocal": _make_field(c.get("origCostLocal", 0), i.get("origCostLocal", 0)),
+            "origCostBase": _make_field(c.get("origCostBase", 0), i.get("origCostBase", 0)),
+            "bookValueLocal": _make_field(c.get("bookValueLocal", 0), i.get("bookValueLocal", 0)),
+            "bookValueBase": _make_field(c.get("bookValueBase", 0), i.get("bookValueBase", 0)),
+            "marketValueLocal": _make_field(c.get("marketValueLocal", 0), i.get("marketValueLocal", 0)),
+            "marketValueBase": _make_field(c.get("marketValueBase", 0), i.get("marketValueBase", 0)),
+            "incomeLocal": _make_field(c.get("incomeLocal", 0), i.get("incomeLocal", 0)),
+            "brokerCode": c.get("brokerCode", i.get("brokerCode", "")),
+        })
+    return rows
+
+
+# ── 7. Basis Lot Check ─────────────────────────────────────
+
+@app.get("/api/funds/{account}/basis-lot-check")
+async def basis_lot_check(account: str, valuationDt: Optional[str] = None):
+    """Compare position-level shares against lot-level shares per asset."""
+    db = get_async_db()
+    base_query: dict = {"account": account}
+    if valuationDt:
+        base_query["valuationDt"] = valuationDt
+
+    positions = await db[COLLECTIONS["dataSubLedgerPosition"]].find(
+        {**base_query, "userBank": "CPU"}, {"_id": 0}
+    ).to_list(1000)
+    lots = await db[COLLECTIONS["dataSubLedgerTrans"]].find(
+        base_query, {"_id": 0}
+    ).to_list(2000)
+
+    pos_by_asset: dict[str, float] = {}
+    desc_by_asset: dict[str, str] = {}
+    for p in positions:
+        aid = p.get("assetId", "")
+        pos_by_asset[aid] = pos_by_asset.get(aid, 0) + p.get("posShares", 0)
+        if aid not in desc_by_asset:
+            desc_by_asset[aid] = p.get("issueDescription", "")
+
+    lot_by_asset: dict[str, float] = {}
+    for lot in lots:
+        aid = lot.get("assetId", "")
+        lot_by_asset[aid] = lot_by_asset.get(aid, 0) + lot.get("shares", 0)
+
+    all_assets = sorted(set(list(pos_by_asset.keys()) + list(lot_by_asset.keys())))
+    rows = []
+    for aid in all_assets:
+        primary = pos_by_asset.get(aid, 0)
+        non_primary = lot_by_asset.get(aid, 0)
+        var = primary - non_primary
+        rows.append({
+            "assetId": aid,
+            "issueDescription": desc_by_asset.get(aid, ""),
+            "primaryShares": primary,
+            "nonPrimaryShares": non_primary,
+            "shareVariance": var,
+            "validationStatus": "pass" if abs(var) <= VARIANCE_THRESHOLD else "break",
+        })
+    return rows
+
+
+# ── 8. Available Dates ─────────────────────────────────────
+
+@app.get("/api/events/{event_id}/available-dates")
+async def available_dates(event_id: str):
+    """Return distinct valuation dates available for the event's funds."""
+    db = get_async_db()
+    event = await _get_event_or_404(db, event_id)
+    fund_accounts = [f["account"] for f in event.get("funds", [])]
+    if not fund_accounts:
+        return []
+
+    acct_filter = {"account": {"$in": fund_accounts}}
+    nav_dates = await db[COLLECTIONS["navSummary"]].distinct("valuationDt", acct_filter)
+    ledger_dates = await db[COLLECTIONS["ledger"]].distinct("valuationDt", acct_filter)
+    all_dates = sorted(set(nav_dates + ledger_dates), reverse=True)
+    return all_dates
+
+
+# ── 9. AI Analysis Aggregation ─────────────────────────────
+
+@app.get("/api/ai/analysis")
+async def ai_analysis_aggregation(
+    eventId: Optional[str] = None,
+    account: Optional[str] = None,
+    category: Optional[str] = None,
+):
+    """Aggregated AI analysis data for the commentary panel."""
+    db = get_async_db()
+    query: dict = {}
+    if account:
+        query["fundAccount"] = account
+    if eventId:
+        runs = await db[COLLECTIONS["validationRuns"]].find(
+            {"eventId": eventId}, {"runId": 1}
+        ).to_list(100)
+        run_ids = [r["runId"] for r in runs]
+        if run_ids:
+            query["validationRunId"] = {"$in": run_ids}
+        else:
+            return {"trendSummary": "No validation data available.", "patternRecognition": [],
+                    "confidenceScore": 0, "recommendedNextStep": "Run a validation first."}
+
+    breaks = await db[COLLECTIONS["breakRecords"]].find(query, {"_id": 0}).to_list(500)
+
+    confidence_sum = 0.0
+    confidence_count = 0
+    patterns = []
+    for brk in breaks:
+        ai = brk.get("aiAnalysis")
+        if ai:
+            c = ai.get("confidenceScore", ai.get("confidence", 0))
+            if c:
+                confidence_sum += c
+                confidence_count += 1
+            for sb in ai.get("similarBreaks", []):
+                patterns.append(sb)
+
+    avg_conf = (confidence_sum / confidence_count) if confidence_count > 0 else 0
+    total_breaks = len(breaks)
+    trend = f"{total_breaks} break(s) detected across the selected scope."
+    if total_breaks == 0:
+        trend = "No breaks detected. All validations passed."
+    next_step = "Review breaks with lowest confidence scores first." if total_breaks > 0 else "No action required."
+
+    return {
+        "trendSummary": trend,
+        "patternRecognition": patterns[:10],
+        "confidenceScore": round(avg_conf * 100, 1),
+        "recommendedNextStep": next_step,
+    }
+
+
+# ── 10. SSE Endpoint ───────────────────────────────────────
+
+@app.get("/api/events/{event_id}/sse")
+async def event_sse(event_id: str):
+    """Server-Sent Events stream for real-time updates on an event."""
+    db = get_async_db()
+    event = await db[COLLECTIONS["events"]].find_one({"eventId": event_id}, {"_id": 0})
+    if not event:
+        raise HTTPException(status_code=404, detail=f"Event {event_id} not found")
+
+    async def _stream():
+        while True:
+            try:
+                run_count = await db[COLLECTIONS["validationRuns"]].count_documents({"eventId": event_id})
+                runs = await db[COLLECTIONS["validationRuns"]].find(
+                    {"eventId": event_id}, {"runId": 1}
+                ).to_list(100)
+                run_ids = [r["runId"] for r in runs]
+                break_count = 0
+                if run_ids:
+                    break_count = await db[COLLECTIONS["breakRecords"]].count_documents({
+                        "validationRunId": {"$in": run_ids},
+                        "state": {"$nin": [BreakState.APPROVED.value, "RESOLVED"]},
+                    })
+                payload = {
+                    "type": "status_change",
+                    "eventId": event_id,
+                    "data": {"runCount": run_count, "openBreakCount": break_count,
+                             "timestamp": datetime.utcnow().isoformat()},
+                }
+                yield f"data: {json.dumps(payload)}\n\n"
+            except Exception as exc:
+                yield f"event: error\ndata: {json.dumps({'error': str(exc)})}\n\n"
+            await asyncio.sleep(5)
+
+    return StreamingResponse(
+        _stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
+    )
+
+
+# ── 11. Sequential Validation ──────────────────────────────
+
+@app.post("/api/validation/run-sequential")
+async def run_sequential_validation_endpoint(req: RunValidationRequest):
+    """Execute validation checks sequentially across all funds, then run AI analysis."""
+    def _execute():
+        engine = ValidationEngine()
+        fund_accounts = None
+        if req.fundSelection and req.fundSelection != "all":
+            fund_accounts = [a.strip() for a in req.fundSelection.split(",")]
+
+        run_doc = engine.run_validation(
+            event_id=req.eventId,
+            valuation_dt=req.valuationDt,
+            check_suite=req.checkSuite,
+            fund_accounts=fund_accounts,
+            incumbent_event_id=req.incumbentEventId,
+        )
+
+        # Run AI analysis on detected breaks (best-effort)
+        try:
+            ai_service = AIAnalysisService()
+            ai_service.analyze_run_breaks(run_doc.runId)
+        except Exception:
+            pass
+
+        db = get_sync_db()
+        return db[COLLECTIONS["validationRuns"]].find_one(
+            {"runId": run_doc.runId}, {"_id": 0}
+        )
+
+    loop = asyncio.get_event_loop()
+    try:
+        result = await loop.run_in_executor(None, _execute)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return result
 
 
 # ══════════════════════════════════════════════════════════════

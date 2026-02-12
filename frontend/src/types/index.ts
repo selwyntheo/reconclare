@@ -356,5 +356,162 @@ export interface LedgerSubledgerDrillDownSelection {
   subledgerSupported: boolean;
 }
 
+// ══════════════════════════════════════════════════════════════
+// PROCESS FLOW DRILL-DOWN TYPES (per Process Flow Spec v1.0)
+// ══════════════════════════════════════════════════════════════
+
+export type ValidationStatusType = 'pass' | 'marginal' | 'break';
+
+// ── NAV Compare (NAV Dashboard Grid) ─────────────────────────
+
+export interface NavCompareRow {
+  valuationDt: string;
+  account: string;
+  accountName: string;
+  incumbentTNA: number;
+  bnyTNA: number;
+  tnaDifference: number;
+  tnaDifferenceBP: number;
+  validationStatus: ValidationStatusType;
+}
+
+// ── Cross-Check Results (NAV Dashboard Expandable) ───────────
+
+export interface CrossCheckRow {
+  label: string;
+  lhsValue: number;
+  rhsValue: number;
+  difference: number;
+  validationStatus: ValidationStatusType;
+}
+
+export interface CrossCheckResult {
+  bsCheck: CrossCheckRow;
+  incstCheck: CrossCheckRow;
+}
+
+// ── Trial Balance Category Row ───────────────────────────────
+
+export interface TrialBalanceCategoryRow {
+  valuationDt: string;
+  account: string;
+  category: string;
+  incumbentBalance: number;
+  bnyBalance: number;
+  balanceDiff: number;
+  balanceDiffBP: number;
+  validationStatus: ValidationStatusType;
+}
+
+// ── Subledger Compare Check ──────────────────────────────────
+
+export interface SubledgerCheckResult {
+  category: string;
+  ledgerValue: number;
+  subledgerValue: number;
+  difference: number;
+  validationStatus: ValidationStatusType;
+}
+
+// ── Position Compare Row ─────────────────────────────────────
+
+export interface ComparisonField {
+  fieldName: string;
+  incumbent: number;
+  bny: number;
+  variance: number;
+}
+
+export interface PositionCompareRow {
+  assetId: string;
+  securityType: string;
+  issueDescription: string;
+  cusip: string;
+  longShortInd: string;
+  shareClass: string;
+  comparisonFields: ComparisonField[];
+  validationStatus: ValidationStatusType;
+}
+
+// ── Tax Lot Row ──────────────────────────────────────────────
+
+export interface TaxLotRow {
+  transactionId: string;
+  lotTradeDate: string;
+  lotSettleDate: string;
+  shares: ComparisonField;
+  originalFace: ComparisonField;
+  origCostLocal: ComparisonField;
+  origCostBase: ComparisonField;
+  bookValueLocal: ComparisonField;
+  bookValueBase: ComparisonField;
+  marketValueLocal: ComparisonField;
+  marketValueBase: ComparisonField;
+  incomeLocal: ComparisonField;
+  brokerCode: string;
+}
+
+// ── Basis Lot Row ────────────────────────────────────────────
+
+export interface BasisLotRow {
+  assetId: string;
+  issueDescription: string;
+  primaryShares: number;
+  nonPrimaryShares: number;
+  shareVariance: number;
+  validationStatus: ValidationStatusType;
+}
+
+// ── Waterfall Chart Bar ──────────────────────────────────────
+
+export interface WaterfallBar {
+  category: string;
+  value: number;
+  type: 'start' | 'delta' | 'end';
+  isNegative: boolean;
+}
+
+// ── SSE Event Types ──────────────────────────────────────────
+
+export type SSEEventType = 'validation_progress' | 'validation_complete' | 'ai_analysis_complete' | 'status_change';
+
+export interface SSEEvent {
+  type: SSEEventType;
+  eventId: string;
+  data: {
+    fundAccount?: string;
+    fundIndex?: number;
+    totalFunds?: number;
+    checkType?: CheckType;
+    status?: string;
+    runId?: string;
+    analysisId?: string;
+    message?: string;
+  };
+}
+
+// ── Drill-Down Context State ─────────────────────────────────
+
+export interface DrillDownContextState {
+  eventId: string;
+  eventName: string;
+  account: string | null;
+  accountName: string | null;
+  valuationDt: string | null;
+  category: string | null;
+  assetId: string | null;
+}
+
+// ── AI Analysis for Commentary Panel ─────────────────────────
+
+export interface AICommentaryData {
+  trendSummary: string;
+  patternRecognition: SimilarBreak[];
+  confidenceScore: number;
+  recommendedNextStep: string;
+  rootCauseSummary?: string;
+  evidenceChain?: EvidenceStep[];
+}
+
 // ── GL Account Mapping Types ─────────────────────────────────
 export * from './glMapping';
