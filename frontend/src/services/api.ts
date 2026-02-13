@@ -17,6 +17,12 @@ import {
   TaxLotRow,
   BasisLotRow,
   AICommentaryData,
+  NavValidationRow,
+  TrialBalanceValidationRow,
+  PositionValidationRow,
+  AssetClassification,
+  TransClassification,
+  LedgerCategoryDerivation,
 } from '../types';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -307,6 +313,26 @@ export async function fetchAIAnalysis(
   return fetchJSON<AICommentaryData>(`/api/ai/analysis?${params.toString()}`);
 }
 
+// ── Dual-System Validation (Internal Checks) ───────────────
+
+export async function fetchNavValidation(eventId: string, valuationDt: string): Promise<NavValidationRow[]> {
+  return fetchJSON<NavValidationRow[]>(`/api/events/${eventId}/nav-validation?valuationDt=${valuationDt}`);
+}
+
+export async function fetchTrialBalanceValidation(account: string, valuationDt: string): Promise<TrialBalanceValidationRow[]> {
+  return fetchJSON<TrialBalanceValidationRow[]>(`/api/funds/${account}/trial-balance-validation?valuationDt=${valuationDt}`);
+}
+
+export async function fetchPositionValidation(
+  account: string,
+  valuationDt: string,
+  category?: string
+): Promise<PositionValidationRow[]> {
+  const params = new URLSearchParams({ valuationDt });
+  if (category) params.set('category', category);
+  return fetchJSON<PositionValidationRow[]>(`/api/funds/${account}/position-validation?${params.toString()}`);
+}
+
 // ── Sequential Validation ──────────────────────────────────
 
 export async function runSequentialValidation(
@@ -318,6 +344,103 @@ export async function runSequentialValidation(
   return fetchJSON<any>('/api/validation/run-sequential', {
     method: 'POST',
     body: JSON.stringify({ eventId, valuationDt, checkSuite, fundSelection }),
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// CLASSIFICATION MAPPING ENDPOINTS (Section 10)
+// ══════════════════════════════════════════════════════════════
+
+// ── Asset Classification ────────────────────────────────────
+
+export async function fetchAssetClassifications(source?: string): Promise<AssetClassification[]> {
+  const params = source ? `?source=${encodeURIComponent(source)}` : '';
+  return fetchJSON<AssetClassification[]>(`/api/reference/asset-classification${params}`);
+}
+
+export async function createAssetClassification(mapping: AssetClassification): Promise<{ message: string; mapping: AssetClassification }> {
+  return fetchJSON('/api/reference/asset-classification', {
+    method: 'POST',
+    body: JSON.stringify(mapping),
+  });
+}
+
+export async function updateAssetClassification(
+  keySecType: string,
+  mapping: Partial<AssetClassification>,
+  source: string = 'investone'
+): Promise<{ message: string }> {
+  return fetchJSON(`/api/reference/asset-classification/${encodeURIComponent(keySecType)}?source=${encodeURIComponent(source)}`, {
+    method: 'PUT',
+    body: JSON.stringify(mapping),
+  });
+}
+
+export async function deleteAssetClassification(keySecType: string, source: string = 'investone'): Promise<{ message: string }> {
+  return fetchJSON(`/api/reference/asset-classification/${encodeURIComponent(keySecType)}?source=${encodeURIComponent(source)}`, {
+    method: 'DELETE',
+  });
+}
+
+// ── Transaction Classification ──────────────────────────────
+
+export async function fetchTransClassifications(source?: string): Promise<TransClassification[]> {
+  const params = source ? `?source=${encodeURIComponent(source)}` : '';
+  return fetchJSON<TransClassification[]>(`/api/reference/trans-classification${params}`);
+}
+
+export async function createTransClassification(mapping: TransClassification): Promise<{ message: string; mapping: TransClassification }> {
+  return fetchJSON('/api/reference/trans-classification', {
+    method: 'POST',
+    body: JSON.stringify(mapping),
+  });
+}
+
+export async function updateTransClassification(
+  keyTransCode: string,
+  mapping: Partial<TransClassification>,
+  source: string = 'investone'
+): Promise<{ message: string }> {
+  return fetchJSON(`/api/reference/trans-classification/${encodeURIComponent(keyTransCode)}?source=${encodeURIComponent(source)}`, {
+    method: 'PUT',
+    body: JSON.stringify(mapping),
+  });
+}
+
+export async function deleteTransClassification(keyTransCode: string, source: string = 'investone'): Promise<{ message: string }> {
+  return fetchJSON(`/api/reference/trans-classification/${encodeURIComponent(keyTransCode)}?source=${encodeURIComponent(source)}`, {
+    method: 'DELETE',
+  });
+}
+
+// ── Ledger Category Derivation ──────────────────────────────
+
+export async function fetchLedgerCategoryDerivations(type?: string): Promise<LedgerCategoryDerivation[]> {
+  const params = type ? `?type=${encodeURIComponent(type)}` : '';
+  return fetchJSON<LedgerCategoryDerivation[]>(`/api/reference/ledger-category-derivation${params}`);
+}
+
+export async function createLedgerCategoryDerivation(mapping: LedgerCategoryDerivation): Promise<{ message: string; mapping: LedgerCategoryDerivation }> {
+  return fetchJSON('/api/reference/ledger-category-derivation', {
+    method: 'POST',
+    body: JSON.stringify(mapping),
+  });
+}
+
+export async function updateLedgerCategoryDerivation(
+  key: string,
+  mapping: Partial<LedgerCategoryDerivation>,
+  type: string = 'transaction'
+): Promise<{ message: string }> {
+  return fetchJSON(`/api/reference/ledger-category-derivation/${encodeURIComponent(key)}?type=${encodeURIComponent(type)}`, {
+    method: 'PUT',
+    body: JSON.stringify(mapping),
+  });
+}
+
+export async function deleteLedgerCategoryDerivation(key: string, type: string = 'transaction'): Promise<{ message: string }> {
+  return fetchJSON(`/api/reference/ledger-category-derivation/${encodeURIComponent(key)}?type=${encodeURIComponent(type)}`, {
+    method: 'DELETE',
   });
 }
 

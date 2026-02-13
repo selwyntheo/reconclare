@@ -917,6 +917,183 @@ async def validate_mappings(event_id: str):
 
 
 # ══════════════════════════════════════════════════════════════
+# Classification Mapping (Section 10)
+# ══════════════════════════════════════════════════════════════
+
+# ── Asset Classification ─────────────────────────────────────
+
+@app.get("/api/reference/asset-classification")
+async def list_asset_classifications(source: Optional[str] = None):
+    """List asset classification mappings, optionally filtered by source."""
+    db = get_async_db()
+    query = {}
+    if source:
+        query["keySource"] = source
+    items = await db[COLLECTIONS["convAssetClassification"]].find(query, {"_id": 0}).to_list(200)
+    return items
+
+
+@app.post("/api/reference/asset-classification")
+async def create_asset_classification(mapping: dict):
+    """Create a new asset classification mapping."""
+    db = get_async_db()
+    required = ["keySource", "keySecType", "convAssetClass", "glCategoryImpact"]
+    for field in required:
+        if field not in mapping:
+            raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+
+    existing = await db[COLLECTIONS["convAssetClassification"]].find_one({
+        "keySource": mapping["keySource"],
+        "keySecType": mapping["keySecType"],
+    })
+    if existing:
+        raise HTTPException(status_code=409, detail="Asset classification already exists for this source + secType")
+
+    await db[COLLECTIONS["convAssetClassification"]].insert_one(mapping)
+    mapping.pop("_id", None)
+    return {"message": "Asset classification created", "mapping": mapping}
+
+
+@app.put("/api/reference/asset-classification/{key_sec_type}")
+async def update_asset_classification(key_sec_type: str, mapping: dict, source: str = "investone"):
+    """Update an existing asset classification mapping."""
+    db = get_async_db()
+    result = await db[COLLECTIONS["convAssetClassification"]].update_one(
+        {"keySource": source, "keySecType": key_sec_type},
+        {"$set": mapping}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Asset classification not found")
+    return {"message": "Asset classification updated"}
+
+
+@app.delete("/api/reference/asset-classification/{key_sec_type}")
+async def delete_asset_classification(key_sec_type: str, source: str = "investone"):
+    """Delete an asset classification mapping."""
+    db = get_async_db()
+    result = await db[COLLECTIONS["convAssetClassification"]].delete_one({
+        "keySource": source, "keySecType": key_sec_type,
+    })
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Asset classification not found")
+    return {"message": "Asset classification deleted"}
+
+
+# ── Transaction Classification ───────────────────────────────
+
+@app.get("/api/reference/trans-classification")
+async def list_trans_classifications(source: Optional[str] = None):
+    """List transaction classification mappings, optionally filtered by source."""
+    db = get_async_db()
+    query = {}
+    if source:
+        query["keySource"] = source
+    items = await db[COLLECTIONS["convTransClassification"]].find(query, {"_id": 0}).to_list(200)
+    return items
+
+
+@app.post("/api/reference/trans-classification")
+async def create_trans_classification(mapping: dict):
+    """Create a new transaction classification mapping."""
+    db = get_async_db()
+    required = ["keySource", "keyTransCode", "convTransClass", "recPayCategory"]
+    for field in required:
+        if field not in mapping:
+            raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+
+    existing = await db[COLLECTIONS["convTransClassification"]].find_one({
+        "keySource": mapping["keySource"],
+        "keyTransCode": mapping["keyTransCode"],
+    })
+    if existing:
+        raise HTTPException(status_code=409, detail="Transaction classification already exists for this source + transCode")
+
+    await db[COLLECTIONS["convTransClassification"]].insert_one(mapping)
+    mapping.pop("_id", None)
+    return {"message": "Transaction classification created", "mapping": mapping}
+
+
+@app.put("/api/reference/trans-classification/{key_trans_code}")
+async def update_trans_classification(key_trans_code: str, mapping: dict, source: str = "investone"):
+    """Update an existing transaction classification mapping."""
+    db = get_async_db()
+    result = await db[COLLECTIONS["convTransClassification"]].update_one(
+        {"keySource": source, "keyTransCode": key_trans_code},
+        {"$set": mapping}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Transaction classification not found")
+    return {"message": "Transaction classification updated"}
+
+
+@app.delete("/api/reference/trans-classification/{key_trans_code}")
+async def delete_trans_classification(key_trans_code: str, source: str = "investone"):
+    """Delete a transaction classification mapping."""
+    db = get_async_db()
+    result = await db[COLLECTIONS["convTransClassification"]].delete_one({
+        "keySource": source, "keyTransCode": key_trans_code,
+    })
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Transaction classification not found")
+    return {"message": "Transaction classification deleted"}
+
+
+# ── Ledger Category Derivation ───────────────────────────────
+
+@app.get("/api/reference/ledger-category-derivation")
+async def list_ledger_category_derivations(type: Optional[str] = None):
+    """List ledger category derivation mappings, optionally filtered by derivationType."""
+    db = get_async_db()
+    query = {}
+    if type:
+        query["derivationType"] = type
+    items = await db[COLLECTIONS["convLedgerCategoryDerivation"]].find(query, {"_id": 0}).to_list(200)
+    return items
+
+
+@app.post("/api/reference/ledger-category-derivation")
+async def create_ledger_category_derivation(mapping: dict):
+    """Create a new ledger category derivation mapping."""
+    db = get_async_db()
+    if "derivationType" not in mapping:
+        raise HTTPException(status_code=400, detail="Missing required field: derivationType")
+
+    await db[COLLECTIONS["convLedgerCategoryDerivation"]].insert_one(mapping)
+    mapping.pop("_id", None)
+    return {"message": "Ledger category derivation created", "mapping": mapping}
+
+
+@app.put("/api/reference/ledger-category-derivation/{key}")
+async def update_ledger_category_derivation(key: str, mapping: dict, type: str = "transaction"):
+    """Update a ledger category derivation mapping. Key is convTransClass or convAssetClass."""
+    db = get_async_db()
+    if type == "transaction":
+        query = {"derivationType": "transaction", "convTransClass": key}
+    else:
+        query = {"derivationType": "asset", "convAssetClass": key}
+
+    result = await db[COLLECTIONS["convLedgerCategoryDerivation"]].update_one(query, {"$set": mapping})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Ledger category derivation not found")
+    return {"message": "Ledger category derivation updated"}
+
+
+@app.delete("/api/reference/ledger-category-derivation/{key}")
+async def delete_ledger_category_derivation(key: str, type: str = "transaction"):
+    """Delete a ledger category derivation mapping."""
+    db = get_async_db()
+    if type == "transaction":
+        query = {"derivationType": "transaction", "convTransClass": key}
+    else:
+        query = {"derivationType": "asset", "convAssetClass": key}
+
+    result = await db[COLLECTIONS["convLedgerCategoryDerivation"]].delete_one(query)
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Ledger category derivation not found")
+    return {"message": "Ledger category derivation deleted"}
+
+
+# ══════════════════════════════════════════════════════════════
 # Process Flow Drill-Down Endpoints
 # ══════════════════════════════════════════════════════════════
 
@@ -986,32 +1163,27 @@ async def nav_compare(event_id: str, valuationDt: Optional[str] = None):
 
 # ── 2. NAV Cross-Checks ────────────────────────────────────
 
-@app.get("/api/events/{event_id}/nav-compare/{account}/cross-checks")
-async def nav_cross_checks(event_id: str, account: str, valuationDt: Optional[str] = None):
-    """Cross-check validations: Ledger BS vs NAV, Ledger INCST vs BS remainder."""
-    db = get_async_db()
+async def _compute_cross_checks(db, account: str, valuationDt: Optional[str], user_bank: str = "CPU") -> dict:
+    """Compute cross-check validations for a single system (CPU or INCUMBENT)."""
     base_query: dict = {"account": account}
     if valuationDt:
         base_query["valuationDt"] = valuationDt
 
-    # Get GL category mappings to determine BS vs INCST
     gl_mappings = await db["refGLCategoryMapping"].find({}, {"_id": 0}).to_list(200)
     bs_gl_numbers = {m["glAccountNumber"] for m in gl_mappings if m.get("bsIncst") == "BS"}
     incst_gl_numbers = {m["glAccountNumber"] for m in gl_mappings if m.get("bsIncst") == "INCST"}
 
-    # Fetch CPU ledger
-    cpu_ledger = await db[COLLECTIONS["ledger"]].find(
-        {**base_query, "userBank": "CPU"}, {"_id": 0}
+    ledger = await db[COLLECTIONS["ledger"]].find(
+        {**base_query, "userBank": user_bank}, {"_id": 0}
     ).to_list(500)
 
-    bs_total = sum(e.get("endingBalance", 0) for e in cpu_ledger
+    bs_total = sum(e.get("endingBalance", 0) for e in ledger
                    if e.get("glAccountNumber", e.get("eagleLedgerAcct", "")) in bs_gl_numbers)
-    incst_total = sum(e.get("endingBalance", 0) for e in cpu_ledger
+    incst_total = sum(e.get("endingBalance", 0) for e in ledger
                       if e.get("glAccountNumber", e.get("eagleLedgerAcct", "")) in incst_gl_numbers)
 
-    # NAV net assets
     navs = await db[COLLECTIONS["navSummary"]].find(
-        {**base_query, "userBank": "CPU"}, {"_id": 0}
+        {**base_query, "userBank": user_bank}, {"_id": 0}
     ).to_list(100)
     nav_net_assets = sum(n.get("netAssets", 0) for n in navs)
 
@@ -1034,6 +1206,13 @@ async def nav_cross_checks(event_id: str, account: str, valuationDt: Optional[st
             "validationStatus": "pass" if abs(incst_diff) <= VARIANCE_THRESHOLD else "break",
         },
     }
+
+
+@app.get("/api/events/{event_id}/nav-compare/{account}/cross-checks")
+async def nav_cross_checks(event_id: str, account: str, valuationDt: Optional[str] = None, user_bank: str = Query(default="CPU")):
+    """Cross-check validations: Ledger BS vs NAV, Ledger INCST vs BS remainder."""
+    db = get_async_db()
+    return await _compute_cross_checks(db, account, valuationDt, user_bank)
 
 
 # ── 3. Trial Balance Compare ───────────────────────────────
@@ -1091,10 +1270,8 @@ async def trial_balance_compare(account: str, valuationDt: Optional[str] = None)
 
 # ── 4. Subledger Compare Check ─────────────────────────────
 
-@app.get("/api/funds/{account}/trial-balance-compare/{category}/subledger-check")
-async def subledger_check(account: str, category: str, valuationDt: Optional[str] = None):
-    """Compare ledger balance against derived subledger rollup for a category."""
-    db = get_async_db()
+async def _compute_subledger_check(db, account: str, category: str, valuationDt: Optional[str], user_bank: str = "CPU") -> dict:
+    """Compute subledger check for a single system (CPU or INCUMBENT)."""
     base_query: dict = {"account": account}
     if valuationDt:
         base_query["valuationDt"] = valuationDt
@@ -1104,18 +1281,18 @@ async def subledger_check(account: str, category: str, valuationDt: Optional[str
     ).to_list(200)
     cat_gl_numbers = {m["glAccountNumber"] for m in gl_mappings}
 
-    cpu_ledger = await db[COLLECTIONS["ledger"]].find(
-        {**base_query, "userBank": "CPU"}, {"_id": 0}
+    ledger = await db[COLLECTIONS["ledger"]].find(
+        {**base_query, "userBank": user_bank}, {"_id": 0}
     ).to_list(500)
     ledger_total = sum(
-        e.get("endingBalance", 0) for e in cpu_ledger
+        e.get("endingBalance", 0) for e in ledger
         if e.get("glAccountNumber", e.get("eagleLedgerAcct", "")) in cat_gl_numbers
     )
 
     def _get_subledger():
         service = DerivedSubledgerService()
         val_dt = valuationDt or "2026-02-07"
-        return service.get_ledger_subledger_summary(account, val_dt, "CPU")
+        return service.get_ledger_subledger_summary(account, val_dt, user_bank)
 
     loop = asyncio.get_event_loop()
     subledger_data = await loop.run_in_executor(None, _get_subledger)
@@ -1135,6 +1312,13 @@ async def subledger_check(account: str, category: str, valuationDt: Optional[str
         "difference": diff,
         "validationStatus": "pass" if abs(diff) <= VARIANCE_THRESHOLD else "break",
     }
+
+
+@app.get("/api/funds/{account}/trial-balance-compare/{category}/subledger-check")
+async def subledger_check(account: str, category: str, valuationDt: Optional[str] = None, user_bank: str = Query(default="CPU")):
+    """Compare ledger balance against derived subledger rollup for a category."""
+    db = get_async_db()
+    return await _compute_subledger_check(db, account, category, valuationDt, user_bank)
 
 
 # ── 5. Position Compare ────────────────────────────────────
@@ -1263,20 +1447,24 @@ async def tax_lot_detail(account: str, asset_id: str, valuationDt: Optional[str]
 
 # ── 7. Basis Lot Check ─────────────────────────────────────
 
-@app.get("/api/funds/{account}/basis-lot-check")
-async def basis_lot_check(account: str, valuationDt: Optional[str] = None):
-    """Compare position-level shares against lot-level shares per asset."""
-    db = get_async_db()
+async def _compute_basis_lot_check(db, account: str, valuationDt: Optional[str], user_bank: str = "CPU") -> list:
+    """Compute basis lot check for a single system (CPU or INCUMBENT)."""
     base_query: dict = {"account": account}
     if valuationDt:
         base_query["valuationDt"] = valuationDt
 
     positions = await db[COLLECTIONS["dataSubLedgerPosition"]].find(
-        {**base_query, "userBank": "CPU"}, {"_id": 0}
+        {**base_query, "userBank": user_bank}, {"_id": 0}
     ).to_list(1000)
     lots = await db[COLLECTIONS["dataSubLedgerTrans"]].find(
-        base_query, {"_id": 0}
+        {**base_query, "userBank": user_bank}, {"_id": 0}
     ).to_list(2000)
+
+    # Fallback: if no lots found with userBank filter, try without
+    if not lots:
+        lots = await db[COLLECTIONS["dataSubLedgerTrans"]].find(
+            {"account": account, **({"valuationDt": valuationDt} if valuationDt else {})}, {"_id": 0}
+        ).to_list(2000)
 
     pos_by_asset: dict[str, float] = {}
     desc_by_asset: dict[str, str] = {}
@@ -1308,7 +1496,154 @@ async def basis_lot_check(account: str, valuationDt: Optional[str] = None):
     return rows
 
 
-# ── 8. Available Dates ─────────────────────────────────────
+@app.get("/api/funds/{account}/basis-lot-check")
+async def basis_lot_check(account: str, valuationDt: Optional[str] = None, user_bank: str = Query(default="CPU")):
+    """Compare position-level shares against lot-level shares per asset."""
+    db = get_async_db()
+    return await _compute_basis_lot_check(db, account, valuationDt, user_bank)
+
+
+# ── 8. Dual-System Internal Validation Endpoints ──────────
+
+
+@app.get("/api/events/{event_id}/nav-validation")
+async def nav_validation(event_id: str, valuationDt: Optional[str] = None):
+    """Per-fund internal validation checks (NAV↔Ledger, BS↔INCST) for both CPU and Incumbent."""
+    db = get_async_db()
+    event = await _get_event_or_404(db, event_id)
+    fund_accounts = [f["account"] for f in event.get("funds", [])]
+    fund_name_map = {f["account"]: f.get("fundName", f["account"]) for f in event.get("funds", [])}
+    if not fund_accounts:
+        return []
+
+    rows = []
+    for acct in sorted(fund_accounts):
+        cpu_checks = await _compute_cross_checks(db, acct, valuationDt, "CPU")
+        inc_checks = await _compute_cross_checks(db, acct, valuationDt, "INCUMBENT")
+
+        checks = []
+        for check_key, check_name in [("bsCheck", "NAV to Ledger (BS)"), ("incstCheck", "Ledger INCST to BS")]:
+            cpu_row = cpu_checks.get(check_key, {})
+            inc_row = inc_checks.get(check_key, {})
+            checks.append({
+                "checkName": check_name,
+                "cpu": {
+                    "lhsValue": cpu_row.get("lhsValue", 0),
+                    "rhsValue": cpu_row.get("rhsValue", 0),
+                    "difference": cpu_row.get("difference", 0),
+                    "validationStatus": cpu_row.get("validationStatus", "pass"),
+                },
+                "incumbent": {
+                    "lhsValue": inc_row.get("lhsValue", 0),
+                    "rhsValue": inc_row.get("rhsValue", 0),
+                    "difference": inc_row.get("difference", 0),
+                    "validationStatus": inc_row.get("validationStatus", "pass"),
+                },
+            })
+
+        overall = "pass"
+        for c in checks:
+            if c["cpu"]["validationStatus"] == "break" or c["incumbent"]["validationStatus"] == "break":
+                overall = "break"
+                break
+
+        rows.append({
+            "account": acct,
+            "accountName": fund_name_map.get(acct, acct),
+            "checks": checks,
+            "overallStatus": overall,
+        })
+    return rows
+
+
+@app.get("/api/funds/{account}/trial-balance-validation")
+async def trial_balance_validation(account: str, valuationDt: Optional[str] = None):
+    """Per-category ledger↔subledger internal validation for both CPU and Incumbent."""
+    db = get_async_db()
+
+    # Get all categories from GL mappings
+    gl_mappings = await db["refGLCategoryMapping"].find({}, {"_id": 0}).to_list(200)
+    all_categories = sorted(set(m["conversionCategory"] for m in gl_mappings))
+
+    rows = []
+    for category in all_categories:
+        cpu_check = await _compute_subledger_check(db, account, category, valuationDt, "CPU")
+        inc_check = await _compute_subledger_check(db, account, category, valuationDt, "INCUMBENT")
+
+        checks = [{
+            "checkName": "Ledger to Subledger",
+            "cpu": {
+                "lhsValue": cpu_check.get("ledgerValue", 0),
+                "rhsValue": cpu_check.get("subledgerValue", 0),
+                "difference": cpu_check.get("difference", 0),
+                "validationStatus": cpu_check.get("validationStatus", "pass"),
+            },
+            "incumbent": {
+                "lhsValue": inc_check.get("ledgerValue", 0),
+                "rhsValue": inc_check.get("subledgerValue", 0),
+                "difference": inc_check.get("difference", 0),
+                "validationStatus": inc_check.get("validationStatus", "pass"),
+            },
+        }]
+
+        overall = "pass"
+        for c in checks:
+            if c["cpu"]["validationStatus"] == "break" or c["incumbent"]["validationStatus"] == "break":
+                overall = "break"
+                break
+
+        rows.append({
+            "account": account,
+            "category": category,
+            "checks": checks,
+            "overallStatus": overall,
+        })
+    return rows
+
+
+@app.get("/api/funds/{account}/position-validation")
+async def position_validation(account: str, valuationDt: Optional[str] = None, category: Optional[str] = None):
+    """Position↔Lot and Basis Lot internal validation for both CPU and Incumbent."""
+    db = get_async_db()
+
+    cpu_basis = await _compute_basis_lot_check(db, account, valuationDt, "CPU")
+    inc_basis = await _compute_basis_lot_check(db, account, valuationDt, "INCUMBENT")
+
+    # Merge by assetId
+    cpu_by_asset = {r["assetId"]: r for r in cpu_basis}
+    inc_by_asset = {r["assetId"]: r for r in inc_basis}
+    all_assets = sorted(set(list(cpu_by_asset.keys()) + list(inc_by_asset.keys())))
+
+    rows = []
+    for aid in all_assets:
+        cpu_r = cpu_by_asset.get(aid, {})
+        inc_r = inc_by_asset.get(aid, {})
+        cpu_status = cpu_r.get("validationStatus", "pass")
+        inc_status = inc_r.get("validationStatus", "pass")
+        rows.append({
+            "assetId": aid,
+            "issueDescription": cpu_r.get("issueDescription", inc_r.get("issueDescription", "")),
+            "checks": [{
+                "checkName": "Position to Lot (Shares)",
+                "cpu": {
+                    "lhsValue": cpu_r.get("primaryShares", 0),
+                    "rhsValue": cpu_r.get("nonPrimaryShares", 0),
+                    "difference": cpu_r.get("shareVariance", 0),
+                    "validationStatus": cpu_status,
+                },
+                "incumbent": {
+                    "lhsValue": inc_r.get("primaryShares", 0),
+                    "rhsValue": inc_r.get("nonPrimaryShares", 0),
+                    "difference": inc_r.get("shareVariance", 0),
+                    "validationStatus": inc_status,
+                },
+            }],
+            "overallStatus": "break" if cpu_status == "break" or inc_status == "break" else "pass",
+        })
+    return rows
+
+
+# ── 9. Available Dates ─────────────────────────────────────
 
 @app.get("/api/events/{event_id}/available-dates")
 async def available_dates(event_id: str):

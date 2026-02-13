@@ -1,23 +1,16 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box,
   Paper,
   Typography,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-  IconButton,
-  Collapse,
   CircularProgress,
   Divider,
   Button,
+  Tabs,
+  Tab,
 } from '@mui/material';
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ColDef, RowDoubleClickedEvent } from 'ag-grid-community';
@@ -40,12 +33,12 @@ import { AICommentaryPanel } from '../../components/shared/AICommentaryPanel';
 import { useDrillDownState, useDrillDownDispatch } from '../../context/DrillDownContext';
 import {
   fetchTrialBalanceCompare,
-  fetchSubledgerCheck,
   fetchEvent,
   fetchAIAnalysis,
 } from '../../services/api';
-import { TrialBalanceCategoryRow, SubledgerCheckResult, AICommentaryData } from '../../types';
+import { TrialBalanceCategoryRow, AICommentaryData, DrillDownTab } from '../../types';
 import { exportToCsv } from '../../utils/exportToExcel';
+import TrialBalanceValidationView from '../../components/validation/TrialBalanceValidationView';
 
 const formatCurrency = (v: number | null | undefined) => {
   if (v == null) return '';
@@ -64,8 +57,6 @@ const TrialBalance: React.FC = () => {
 
   const [categories, setCategories] = useState<TrialBalanceCategoryRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [subledgerChecks, setSubledgerChecks] = useState<Record<string, SubledgerCheckResult>>({});
   const [aiAnalysis, setAiAnalysis] = useState<AICommentaryData | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [, setHighlightedCategory] = useState<string | null>(null);
@@ -135,23 +126,6 @@ const TrialBalance: React.FC = () => {
     return data;
   }, [categories, totals]);
 
-  const handleExpandRow = useCallback((category: string) => {
-    setExpandedRows((prev) => {
-      const next = new Set(prev);
-      if (next.has(category)) {
-        next.delete(category);
-      } else {
-        next.add(category);
-        if (!subledgerChecks[category] && account && valuationDt) {
-          fetchSubledgerCheck(account, category, valuationDt)
-            .then((result) => setSubledgerChecks((prev) => ({ ...prev, [category]: result })))
-            .catch(() => {});
-        }
-      }
-      return next;
-    });
-  }, [subledgerChecks, account, valuationDt]);
-
   const handleCategoryDoubleClick = (cat: TrialBalanceCategoryRow) => {
     dispatch({ type: 'SET_CATEGORY', category: cat.category, navVariance: cat.balanceDiff, navVarianceBP: cat.balanceDiffBP });
     navigate(`/events/${eventId}/funds/${account}/positions?valuationDt=${valuationDt}&category=${encodeURIComponent(cat.category)}`);
@@ -160,17 +134,6 @@ const TrialBalance: React.FC = () => {
   const defaultColDef = useMemo(() => ({ sortable: true, filter: true, resizable: true }), []);
 
   const columnDefs: ColDef<TrialBalanceCategoryRow>[] = [
-    {
-      headerName: '',
-      width: 50,
-      cellRenderer: (params: any) => (
-        <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleExpandRow(params.data.category); }} aria-label={expandedRows.has(params.data.category) ? `Collapse ${params.data.category}` : `Expand ${params.data.category}`}>
-          {expandedRows.has(params.data.category) ? <KeyboardArrowDownIcon /> : <KeyboardArrowRightIcon />}
-        </IconButton>
-      ),
-      sortable: false,
-      filter: false,
-    },
     { field: 'category', headerName: 'Category', flex: 1, minWidth: 180 },
     {
       field: 'incumbentBalance',
@@ -239,93 +202,79 @@ const TrialBalance: React.FC = () => {
           </Stack>
         </Paper>
 
-        {/* Waterfall Chart */}
-        {waterfallData.length > 2 && (
-          <Paper sx={{ p: 2, mb: 2, height: 250 }} elevation={1}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>NAV Variance Decomposition</Typography>
-            <ResponsiveContainer width="100%" height="85%">
-              <BarChart data={waterfallData} margin={{ top: 5, right: 20, bottom: 5, left: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="category" tick={{ fontSize: 10 }} interval={0} angle={-30} textAnchor="end" height={60} />
-                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} />
-                <Tooltip
-                  formatter={(_value: any, _name: any, props: any) => {
-                    const orig = props.payload.originalValue;
-                    const pct = totals.varianceTotal !== 0 ? ((orig / totals.varianceTotal) * 100).toFixed(1) : '0';
-                    return [`$${formatCurrency(orig)} (${pct}% of variance)`, props.payload.category];
-                  }}
-                />
-                <Bar dataKey="base" stackId="waterfall" fill="transparent" />
-                <Bar
-                  dataKey="value"
-                  stackId="waterfall"
-                  onClick={(data: any) => setHighlightedCategory(data.category)}
-                  cursor="pointer"
-                >
-                  {waterfallData.map((entry, index) => (
-                    <Cell key={index} fill={entry.fill} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </Paper>
-        )}
+        {/* Reconciliation / Validation Tabs */}
+        <Paper sx={{ mb: 1 }} elevation={0}>
+          <Tabs
+            value={state.tabs.trialBalance}
+            onChange={(_, v: DrillDownTab) => dispatch({ type: 'SET_TAB', screen: 'trialBalance', tab: v })}
+            sx={{ minHeight: 36, '& .MuiTab-root': { minHeight: 36, py: 0.5, textTransform: 'none' } }}
+          >
+            <Tab label="Reconciliation" value="reconciliation" />
+            <Tab label="Validation" value="validation" />
+          </Tabs>
+        </Paper>
 
-        {/* Ledger BS Compare Grid */}
-        <Box sx={{ flex: 1, minHeight: 300 }} role="region" aria-label="Trial Balance data grid">
-          {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress aria-label="Loading trial balance data" /></Box>
-          ) : (
-            <Box className="ag-theme-alpine" sx={{ height: '100%', width: '100%', '& .ag-cell:focus-within': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 } }}>
-              <AgGridReact<TrialBalanceCategoryRow>
-                modules={[AllCommunityModule]}
-                theme="legacy"
-                rowData={categories}
-                columnDefs={columnDefs}
-                defaultColDef={defaultColDef}
-                animateRows
-                onRowDoubleClicked={(e: RowDoubleClickedEvent<TrialBalanceCategoryRow>) => {
-                  if (e.data) handleCategoryDoubleClick(e.data);
-                }}
-                getRowId={(params) => params.data.category}
-              />
+        {state.tabs.trialBalance === 'reconciliation' ? (
+          <>
+            {/* Waterfall Chart */}
+            {waterfallData.length > 2 && (
+              <Paper sx={{ p: 2, mb: 2, height: 250 }} elevation={1}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>NAV Variance Decomposition</Typography>
+                <ResponsiveContainer width="100%" height="85%">
+                  <BarChart data={waterfallData} margin={{ top: 5, right: 20, bottom: 5, left: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="category" tick={{ fontSize: 10 }} interval={0} angle={-30} textAnchor="end" height={60} />
+                    <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} />
+                    <Tooltip
+                      formatter={(_value: any, _name: any, props: any) => {
+                        const orig = props.payload.originalValue;
+                        const pct = totals.varianceTotal !== 0 ? ((orig / totals.varianceTotal) * 100).toFixed(1) : '0';
+                        return [`$${formatCurrency(orig)} (${pct}% of variance)`, props.payload.category];
+                      }}
+                    />
+                    <Bar dataKey="base" stackId="waterfall" fill="transparent" />
+                    <Bar
+                      dataKey="value"
+                      stackId="waterfall"
+                      onClick={(data: any) => setHighlightedCategory(data.category)}
+                      cursor="pointer"
+                    >
+                      {waterfallData.map((entry, index) => (
+                        <Cell key={index} fill={entry.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </Paper>
+            )}
+
+            {/* Ledger BS Compare Grid */}
+            <Box sx={{ flex: 1, minHeight: 300 }} role="region" aria-label="Trial Balance data grid">
+              {loading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress aria-label="Loading trial balance data" /></Box>
+              ) : (
+                <Box className="ag-theme-alpine" sx={{ height: '100%', width: '100%', '& .ag-cell:focus-within': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 } }}>
+                  <AgGridReact<TrialBalanceCategoryRow>
+                    modules={[AllCommunityModule]}
+                    theme="legacy"
+                    rowData={categories}
+                    columnDefs={columnDefs}
+                    defaultColDef={defaultColDef}
+                    animateRows
+                    onRowDoubleClicked={(e: RowDoubleClickedEvent<TrialBalanceCategoryRow>) => {
+                      if (e.data) handleCategoryDoubleClick(e.data);
+                    }}
+                    getRowId={(params) => params.data.category}
+                  />
+                </Box>
+              )}
             </Box>
-          )}
-
-          {/* Expanded subledger check rows */}
-          {categories.filter((c) => expandedRows.has(c.category)).map((cat) => {
-            const check = subledgerChecks[cat.category];
-            return (
-              <Collapse key={cat.category} in>
-                <Paper variant="outlined" sx={{ mx: 1, mb: 1, p: 2 }}>
-                  <Typography variant="subtitle2" sx={{ mb: 1 }}>Subledger Compare Check — {cat.category}</Typography>
-                  {!check ? <CircularProgress size={20} /> : (
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Ledger (GL)</TableCell>
-                          <TableCell align="right">Subledger (Derived)</TableCell>
-                          <TableCell align="right">Difference</TableCell>
-                          <TableCell align="center">Status</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        <TableRow>
-                          <TableCell>{formatCurrency(check.ledgerValue)}</TableCell>
-                          <TableCell align="right">{formatCurrency(check.subledgerValue)}</TableCell>
-                          <TableCell align="right" sx={{ color: check.difference !== 0 ? '#d32f2f' : undefined }}>
-                            {formatCurrency(check.difference)}
-                          </TableCell>
-                          <TableCell align="center"><ValidationStatus status={check.validationStatus} /></TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                  )}
-                </Paper>
-              </Collapse>
-            );
-          })}
-        </Box>
+          </>
+        ) : (
+          <Box sx={{ flex: 1, overflow: 'auto' }}>
+            <TrialBalanceValidationView account={account || ''} valuationDt={valuationDt} />
+          </Box>
+        )}
 
         {/* Reconciliation Roll-Up Summary */}
         <Paper sx={{ p: 2, mt: 1 }} elevation={1}>
@@ -362,39 +311,14 @@ const TrialBalance: React.FC = () => {
                 startIcon={<FileDownloadIcon />}
                 variant="outlined"
                 onClick={() => {
-                  const exportRows = categories.flatMap((cat) => {
-                    const base = [{
-                      category: cat.category,
-                      type: 'Ledger',
-                      incumbentBalance: cat.incumbentBalance,
-                      bnyBalance: cat.bnyBalance,
-                      balanceDiff: cat.balanceDiff,
-                      balanceDiffBP: cat.balanceDiffBP,
-                      validationStatus: cat.validationStatus,
-                    }];
-                    const check = subledgerChecks[cat.category];
-                    if (check) {
-                      base.push({
-                        category: cat.category,
-                        type: 'Subledger Check',
-                        incumbentBalance: check.ledgerValue,
-                        bnyBalance: check.subledgerValue,
-                        balanceDiff: check.difference,
-                        balanceDiffBP: 0,
-                        validationStatus: check.validationStatus,
-                      });
-                    }
-                    return base;
-                  });
                   exportToCsv(`trial-balance-${account}`, [
                     { headerName: 'Category', field: 'category' },
-                    { headerName: 'Type', field: 'type' },
                     { headerName: 'Incumbent Balance', field: 'incumbentBalance' },
                     { headerName: 'BNY Balance', field: 'bnyBalance' },
                     { headerName: 'Balance Diff', field: 'balanceDiff' },
                     { headerName: 'Diff (BP)', field: 'balanceDiffBP' },
                     { headerName: 'Validation', field: 'validationStatus' },
-                  ], exportRows);
+                  ], categories);
                 }}
               >Export to Excel</Button>
             </Box>

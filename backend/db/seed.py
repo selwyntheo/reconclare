@@ -41,6 +41,9 @@ def seed_database():
     print("📦 Seeding GL Account Mapping reference data...")
     seed_gl_account_mapping_data(db)
 
+    print("📦 Seeding Classification Mapping data...")
+    seed_classification_mapping_data(db)
+
     print("✅ Seed complete!")
     client.close()
 
@@ -862,6 +865,7 @@ def _seed_fund_data(
 
             # Also create lot-level data (matching positions for clean checks)
             db[COLLECTIONS["dataSubLedgerTrans"]].insert_one({
+                "userBank": "CPU",
                 "acctBasis": "PRIMARY",
                 "shareClass": share_class,
                 "assetId": pos["assetId"],
@@ -899,6 +903,27 @@ def _seed_fund_data(
                 "posBookValueLocal": pos["bv"],
                 "posOrigCostBase": pos["bv"],
                 "posOrigCostLocal": pos["bv"],
+                "valuationDt": val_dt,
+            })
+
+            # Also create lot-level data for incumbent
+            db[COLLECTIONS["dataSubLedgerTrans"]].insert_one({
+                "userBank": "INCUMBENT",
+                "acctBasis": "PRIMARY",
+                "shareClass": share_class,
+                "assetId": pos["assetId"],
+                "longShortInd": "L",
+                "transactionId": f"LOT-INC-{account}-{pos['assetId']}",
+                "shares": pos["shares"],
+                "origCostLocal": pos["bv"],
+                "origCostBase": pos["bv"],
+                "bookValueLocal": pos["bv"],
+                "bookValueBase": pos["bv"],
+                "marketValueLocal": pos["mv"],
+                "marketValueBase": pos["mv"],
+                "incomeLocal": pos.get("income", 0),
+                "incomeBase": pos.get("income", 0),
+                "account": account,
                 "valuationDt": val_dt,
             })
 
@@ -1049,6 +1074,89 @@ def seed_gl_account_mapping_data(db):
         db[COLLECTIONS["refEagleGLAccounts"]].drop()
         db[COLLECTIONS["refEagleGLAccounts"]].insert_many(eagle_accounts)
         print(f"  Seeded {len(eagle_accounts)} Eagle GL accounts")
+
+
+# ══════════════════════════════════════════════════════════════
+# Classification Mapping Data (per spec Section 10)
+# ══════════════════════════════════════════════════════════════
+
+def seed_classification_mapping_data(db):
+    """
+    Seed classification mapping tables from Process Flow Specification Section 10.
+    - convAssetClassification (Section 10.2)
+    - convTransClassification (Section 10.3)
+    - convLedgerCategoryDerivation (Section 10.4)
+    """
+
+    # ── Asset Classification (Section 10.2) ────────────────────
+    asset_classifications = [
+        {"keySource": "investone", "keySecType": "S", "convAssetClass": "equity", "glCategoryImpact": "Investment Cost, Holdings Unrealized"},
+        {"keySource": "investone", "keySecType": "MF", "convAssetClass": "mf", "glCategoryImpact": "Investment Cost, Holdings Unrealized"},
+        {"keySource": "investone", "keySecType": "CA", "convAssetClass": "fixedIncome", "glCategoryImpact": "Investment Cost, Holdings Unrealized"},
+        {"keySource": "investone", "keySecType": "TI", "convAssetClass": "fixedIncome", "glCategoryImpact": "Investment Cost, Holdings Unrealized"},
+        {"keySource": "investone", "keySecType": "RP", "convAssetClass": "fixedIncome", "glCategoryImpact": "Investment Cost"},
+        {"keySource": "investone", "keySecType": "CU", "convAssetClass": "cash", "glCategoryImpact": "Cash"},
+        {"keySource": "investone", "keySecType": "FT", "convAssetClass": "future", "glCategoryImpact": "Future Margin"},
+        {"keySource": "investone", "keySecType": "SW", "convAssetClass": "swapTrs", "glCategoryImpact": "Swap Income RecPay"},
+        {"keySource": "eagle", "keySecType": "COM", "convAssetClass": "equity", "glCategoryImpact": "Investment Cost, Holdings Unrealized"},
+        {"keySource": "eagle", "keySecType": "MUT", "convAssetClass": "mf", "glCategoryImpact": "Investment Cost, Holdings Unrealized"},
+        {"keySource": "eagle", "keySecType": "CB", "convAssetClass": "fixedIncome", "glCategoryImpact": "Investment Cost, Holdings Unrealized"},
+        {"keySource": "eagle", "keySecType": "GOV", "convAssetClass": "fixedIncome", "glCategoryImpact": "Investment Cost, Holdings Unrealized"},
+        {"keySource": "eagle", "keySecType": "REPO", "convAssetClass": "fixedIncome", "glCategoryImpact": "Investment Cost"},
+        {"keySource": "eagle", "keySecType": "CASH", "convAssetClass": "cash", "glCategoryImpact": "Cash"},
+        {"keySource": "eagle", "keySecType": "FUT", "convAssetClass": "future", "glCategoryImpact": "Future Margin"},
+        {"keySource": "eagle", "keySecType": "SWAP", "convAssetClass": "swapTrs", "glCategoryImpact": "Swap Income RecPay"},
+    ]
+    db[COLLECTIONS["convAssetClassification"]].insert_many(asset_classifications)
+    print(f"  Seeded {len(asset_classifications)} asset classification mappings")
+
+    # ── Transaction Classification (Section 10.3) ──────────────
+    trans_classifications = [
+        {"keySource": "investone", "keyTransCode": "BUY", "convTransClass": "longBuy", "recPayCategory": "Investment RecPay"},
+        {"keySource": "investone", "keyTransCode": "SELL", "convTransClass": "longSell", "recPayCategory": "Investment RecPay"},
+        {"keySource": "investone", "keyTransCode": "SHRT", "convTransClass": "shortSell", "recPayCategory": "Investment RecPay"},
+        {"keySource": "investone", "keyTransCode": "COVER", "convTransClass": "buyCover", "recPayCategory": "Investment RecPay"},
+        {"keySource": "investone", "keyTransCode": "DIV", "convTransClass": "dividend", "recPayCategory": "Dividend RecPay"},
+        {"keySource": "investone", "keyTransCode": "DIV-", "convTransClass": "dividendNeg", "recPayCategory": "Dividend RecPay"},
+        {"keySource": "investone", "keyTransCode": "DIVADJ", "convTransClass": "dividendPosAdj", "recPayCategory": "Dividend RecPay"},
+        {"keySource": "investone", "keyTransCode": "WHT", "convTransClass": "divWHT", "recPayCategory": "Dividend RecPay"},
+        {"keySource": "investone", "keyTransCode": "CPN", "convTransClass": "coupon", "recPayCategory": "Interest RecPay"},
+        {"keySource": "investone", "keyTransCode": "RECL", "convTransClass": "reclaim", "recPayCategory": "Reclaim RecPay"},
+        {"keySource": "investone", "keyTransCode": "RECL-", "convTransClass": "reclaimNeg", "recPayCategory": "Reclaim RecPay"},
+    ]
+    db[COLLECTIONS["convTransClassification"]].insert_many(trans_classifications)
+    print(f"  Seeded {len(trans_classifications)} transaction classification mappings")
+
+    # ── Ledger Category Derivation (Section 10.4) ──────────────
+    ledger_category_derivations = [
+        # Transaction-class rows (derivationType: "transaction")
+        {"derivationType": "transaction", "convTransClass": "longBuy", "amntConvCategory": "Investment RecPay", "urglBsConvCategory": None, "intRecPayConvCat": None, "intUrglIncstConvCat": None},
+        {"derivationType": "transaction", "convTransClass": "longSell", "amntConvCategory": "Investment RecPay", "urglBsConvCategory": None, "intRecPayConvCat": None, "intUrglIncstConvCat": None},
+        {"derivationType": "transaction", "convTransClass": "shortSell", "amntConvCategory": "Investment RecPay", "urglBsConvCategory": None, "intRecPayConvCat": None, "intUrglIncstConvCat": None},
+        {"derivationType": "transaction", "convTransClass": "buyCover", "amntConvCategory": "Investment RecPay", "urglBsConvCategory": None, "intRecPayConvCat": None, "intUrglIncstConvCat": None},
+        {"derivationType": "transaction", "convTransClass": "dividend", "amntConvCategory": "Dividend RecPay", "urglBsConvCategory": None, "intRecPayConvCat": None, "intUrglIncstConvCat": None},
+        {"derivationType": "transaction", "convTransClass": "dividendNeg", "amntConvCategory": "Dividend RecPay", "urglBsConvCategory": None, "intRecPayConvCat": None, "intUrglIncstConvCat": None},
+        {"derivationType": "transaction", "convTransClass": "dividendPosAdj", "amntConvCategory": "Dividend RecPay", "urglBsConvCategory": None, "intRecPayConvCat": None, "intUrglIncstConvCat": None},
+        {"derivationType": "transaction", "convTransClass": "divWHT", "amntConvCategory": "Dividend RecPay", "urglBsConvCategory": None, "intRecPayConvCat": None, "intUrglIncstConvCat": None},
+        {"derivationType": "transaction", "convTransClass": "coupon", "amntConvCategory": "Interest RecPay", "urglBsConvCategory": None, "intRecPayConvCat": None, "intUrglIncstConvCat": None},
+        {"derivationType": "transaction", "convTransClass": "shortCoupon", "amntConvCategory": "Interest RecPay", "urglBsConvCategory": None, "intRecPayConvCat": None, "intUrglIncstConvCat": None},
+        {"derivationType": "transaction", "convTransClass": "reclaim", "amntConvCategory": "Reclaim RecPay", "urglBsConvCategory": None, "intRecPayConvCat": None, "intUrglIncstConvCat": None},
+        {"derivationType": "transaction", "convTransClass": "reclaimNeg", "amntConvCategory": "Reclaim RecPay", "urglBsConvCategory": None, "intRecPayConvCat": None, "intUrglIncstConvCat": None},
+        {"derivationType": "transaction", "convTransClass": "securityLending", "amntConvCategory": "Interest RecPay", "urglBsConvCategory": None, "intRecPayConvCat": None, "intUrglIncstConvCat": None},
+        {"derivationType": "transaction", "convTransClass": "securityLendingNeg", "amntConvCategory": "Interest RecPay", "urglBsConvCategory": None, "intRecPayConvCat": None, "intUrglIncstConvCat": None},
+        {"derivationType": "transaction", "convTransClass": "paydown", "amntConvCategory": "Investment RecPay", "urglBsConvCategory": None, "intRecPayConvCat": None, "intUrglIncstConvCat": None},
+        {"derivationType": "transaction", "convTransClass": "payup", "amntConvCategory": "Investment RecPay", "urglBsConvCategory": None, "intRecPayConvCat": None, "intUrglIncstConvCat": None},
+        {"derivationType": "transaction", "convTransClass": "futurePay", "amntConvCategory": "Future Margin", "urglBsConvCategory": None, "intRecPayConvCat": None, "intUrglIncstConvCat": None},
+        {"derivationType": "transaction", "convTransClass": "futureRec", "amntConvCategory": "Future Margin", "urglBsConvCategory": None, "intRecPayConvCat": None, "intUrglIncstConvCat": None},
+        # Asset-class rows (derivationType: "asset")
+        {"derivationType": "asset", "convAssetClass": "equity", "costConvCat": "Investment Cost", "urglBsConvCat": "Holdings Unrealized", "dailyMarginCat": None, "intRecPayCat": None, "intUrglIncstCat": "Unrealized INCST"},
+        {"derivationType": "asset", "convAssetClass": "fixedIncome", "costConvCat": "Investment Cost", "urglBsConvCat": "Holdings Unrealized", "dailyMarginCat": None, "intRecPayCat": "Interest RecPay", "intUrglIncstCat": "Unrealized INCST"},
+        {"derivationType": "asset", "convAssetClass": "cash", "costConvCat": "Cash", "urglBsConvCat": "Holdings Unrealized", "dailyMarginCat": None, "intRecPayCat": "Interest RecPay", "intUrglIncstCat": "Unrealized INCST"},
+        {"derivationType": "asset", "convAssetClass": "future", "costConvCat": None, "urglBsConvCat": None, "dailyMarginCat": "Future Margin", "intRecPayCat": None, "intUrglIncstCat": None},
+        {"derivationType": "asset", "convAssetClass": "mf", "costConvCat": "Investment Cost", "urglBsConvCat": "Holdings Unrealized", "dailyMarginCat": None, "intRecPayCat": None, "intUrglIncstCat": "Unrealized INCST"},
+    ]
+    db[COLLECTIONS["convLedgerCategoryDerivation"]].insert_many(ledger_category_derivations)
+    print(f"  Seeded {len(ledger_category_derivations)} ledger category derivation mappings")
 
 
 if __name__ == "__main__":

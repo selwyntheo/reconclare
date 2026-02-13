@@ -9,6 +9,7 @@ import { DrillDownProvider } from './context/DrillDownContext';
 import HumanReview from './pages/HumanReview/HumanReview';
 import LedgerMapping from './pages/LedgerMapping/LedgerMapping';
 import GLAccountMapping from './pages/GLAccountMapping/GLAccountMapping';
+import MappingConfiguration from './pages/MappingConfiguration/MappingConfiguration';
 
 // Lazy-loaded drill-down screens
 const EventDashboard = lazy(() => import('./pages/EventDashboard/EventDashboard'));
@@ -46,6 +47,7 @@ function App() {
               <Route path="ledger-mapping" element={<LedgerMapping />} />
               <Route path="gl-account-mapping" element={<GLAccountMapping />} />
               <Route path="gl-account-mapping/:eventId" element={<GLAccountMapping />} />
+              <Route path="admin/mappings" element={<MappingConfiguration />} />
             </Route>
           </Routes>
         </Suspense>

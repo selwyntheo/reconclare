@@ -14,7 +14,7 @@ import {
   BulkCreateResponse,
   BulkDeleteResponse,
   UnmappedAccountsResponse,
-  ValidationResult,
+  MappingValidationResult,
 } from '../types/glMapping';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -140,8 +140,8 @@ export async function fetchUnmappedAccounts(
 
 export async function validateMappings(
   eventId: string
-): Promise<ValidationResult> {
-  return fetchJSON<ValidationResult>(
+): Promise<MappingValidationResult> {
+  return fetchJSON<MappingValidationResult>(
     `/api/events/${eventId}/gl-mappings/validate`,
     {
       method: 'POST',

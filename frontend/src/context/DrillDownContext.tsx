@@ -9,6 +9,7 @@ import {
   BasisLotRow,
   WaterfallBar,
   AICommentaryData,
+  DrillDownTab,
 } from '../types';
 
 // ── State Shape ──────────────────────────────────────────────
@@ -52,6 +53,11 @@ interface DrillDownState {
     loading: boolean;
     history: AICommentaryData[];
   };
+  tabs: {
+    navDashboard: DrillDownTab;
+    trialBalance: DrillDownTab;
+    positionDrillDown: DrillDownTab;
+  };
 }
 
 const initialState: DrillDownState = {
@@ -93,6 +99,11 @@ const initialState: DrillDownState = {
     loading: false,
     history: [],
   },
+  tabs: {
+    navDashboard: 'reconciliation',
+    trialBalance: 'reconciliation',
+    positionDrillDown: 'reconciliation',
+  },
 };
 
 // ── Actions ──────────────────────────────────────────────────
@@ -121,7 +132,8 @@ type DrillDownAction =
   | { type: 'SET_POS_BASIS_LOT_CHECK'; results: BasisLotRow[] }
   | { type: 'SET_AI_ANALYSIS'; analysis: AICommentaryData }
   | { type: 'SET_AI_LOADING'; loading: boolean }
-  | { type: 'UPDATE_NAV_ROW'; account: string; updates: Partial<NavCompareRow> };
+  | { type: 'UPDATE_NAV_ROW'; account: string; updates: Partial<NavCompareRow> }
+  | { type: 'SET_TAB'; screen: 'navDashboard' | 'trialBalance' | 'positionDrillDown'; tab: DrillDownTab };
 
 // ── Reducer ──────────────────────────────────────────────────
 
@@ -317,6 +329,12 @@ function drillDownReducer(state: DrillDownState, action: DrillDownAction): Drill
             f.account === action.account ? { ...f, ...action.updates } : f
           ),
         },
+      };
+
+    case 'SET_TAB':
+      return {
+        ...state,
+        tabs: { ...state.tabs, [action.screen]: action.tab },
       };
 
     default:

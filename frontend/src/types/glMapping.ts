@@ -96,7 +96,7 @@ export interface UnmappedAccountsResponse {
   unmappedEagle: EagleGLAccount[];
 }
 
-export interface ValidationResult {
+export interface MappingValidationResult {
   isValid: boolean;
   errors: Array<{
     type: string;

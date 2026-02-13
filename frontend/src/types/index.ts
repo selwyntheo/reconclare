@@ -513,5 +513,88 @@ export interface AICommentaryData {
   evidenceChain?: EvidenceStep[];
 }
 
+// ══════════════════════════════════════════════════════════════
+// DUAL-SYSTEM VALIDATION TYPES (Reconciliation vs Validation tabs)
+// ══════════════════════════════════════════════════════════════
+
+export type DrillDownTab = 'reconciliation' | 'validation';
+
+// ── System Check Result (one side of a dual-system check) ────
+
+export interface SystemCheckResult {
+  lhsValue: number;
+  rhsValue: number;
+  difference: number;
+  validationStatus: ValidationStatusType;
+}
+
+// ── Dual-System Check (CPU + Incumbent side-by-side) ─────────
+
+export interface DualSystemCheck {
+  checkName: string;
+  cpu: SystemCheckResult;
+  incumbent: SystemCheckResult;
+}
+
+// ── NAV Validation Row ───────────────────────────────────────
+
+export interface NavValidationRow {
+  account: string;
+  accountName: string;
+  checks: DualSystemCheck[];
+  overallStatus: ValidationStatusType;
+}
+
+// ── Trial Balance Validation Row ─────────────────────────────
+
+export interface TrialBalanceValidationRow {
+  account: string;
+  category: string;
+  checks: DualSystemCheck[];
+  overallStatus: ValidationStatusType;
+}
+
+// ── Position Validation Row ──────────────────────────────────
+
+export interface PositionValidationRow {
+  assetId: string;
+  issueDescription: string;
+  checks: DualSystemCheck[];
+  overallStatus: ValidationStatusType;
+}
+
+// ══════════════════════════════════════════════════════════════
+// CLASSIFICATION MAPPING TYPES (per spec Section 10)
+// ══════════════════════════════════════════════════════════════
+
+export interface AssetClassification {
+  keySource: string;
+  keySecType: string;
+  convAssetClass: string;
+  glCategoryImpact: string;
+}
+
+export interface TransClassification {
+  keySource: string;
+  keyTransCode: string;
+  convTransClass: string;
+  recPayCategory: string;
+}
+
+export interface LedgerCategoryDerivation {
+  derivationType: 'transaction' | 'asset';
+  convTransClass?: string;
+  amntConvCategory?: string;
+  urglBsConvCategory?: string;
+  intRecPayConvCat?: string;
+  intUrglIncstConvCat?: string;
+  convAssetClass?: string;
+  costConvCat?: string;
+  urglBsConvCat?: string;
+  dailyMarginCat?: string;
+  intRecPayCat?: string;
+  intUrglIncstCat?: string;
+}
+
 // ── GL Account Mapping Types ─────────────────────────────────
 export * from './glMapping';

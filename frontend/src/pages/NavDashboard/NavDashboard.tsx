@@ -13,19 +13,22 @@ import {
   Radio,
   RadioGroup,
   LinearProgress,
+  CircularProgress,
+  Tabs,
+  Tab,
   Table,
   TableBody,
   TableCell,
+  TableContainer,
   TableHead,
   TableRow,
-  IconButton,
   Collapse,
-  CircularProgress,
+  IconButton,
 } from '@mui/material';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ScheduleIcon from '@mui/icons-material/Schedule';
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ColDef, RowClickedEvent, RowDoubleClickedEvent } from 'ag-grid-community';
@@ -45,8 +48,9 @@ import {
   fetchAIAnalysis,
   runSequentialValidation,
 } from '../../services/api';
-import { NavCompareRow, CrossCheckResult, AICommentaryData, CheckType, ValidationStatusType } from '../../types';
+import { NavCompareRow, CrossCheckResult, AICommentaryData, CheckType, DrillDownTab } from '../../types';
 import { exportToCsv } from '../../utils/exportToExcel';
+import NavValidationView from '../../components/validation/NavValidationView';
 
 const CHECK_SUITE_OPTIONS: { value: CheckType; label: string; level: string }[] = [
   { value: 'NAV_TO_LEDGER', label: 'NAV to Ledger', level: 'L0' },
@@ -74,14 +78,15 @@ const NavDashboard: React.FC = () => {
   const [funds, setFunds] = useState<NavCompareRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedFund, setSelectedFund] = useState<string | null>(null);
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [crossChecks, setCrossChecks] = useState<Record<string, CrossCheckResult>>({});
   const [aiAnalysis, setAiAnalysis] = useState<AICommentaryData | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [checkSuite, setCheckSuite] = useState<CheckType[]>(CHECK_SUITE_OPTIONS.map((c) => c.value));
   const [fundFilter, setFundFilter] = useState<'all' | 'selected'>('all');
   const [validating, setValidating] = useState(false);
   const [validationProgress, setValidationProgress] = useState('');
+  const [expandedFund, setExpandedFund] = useState<string | null>(null);
+  const [crossChecks, setCrossChecks] = useState<CrossCheckResult | null>(null);
+  const [crossChecksLoading, setCrossChecksLoading] = useState(false);
 
   // Set event context
   useEffect(() => {
@@ -155,24 +160,6 @@ const NavDashboard: React.FC = () => {
     }
   }, [eventId, selectedFund]);
 
-  const handleExpandRow = useCallback((account: string) => {
-    setExpandedRows((prev) => {
-      const next = new Set(prev);
-      if (next.has(account)) {
-        next.delete(account);
-      } else {
-        next.add(account);
-        // Fetch cross-checks if not cached
-        if (!crossChecks[account] && eventId && valuationDt) {
-          fetchNavCrossChecks(eventId, account, valuationDt)
-            .then((result) => setCrossChecks((prev) => ({ ...prev, [account]: result })))
-            .catch(() => {});
-        }
-      }
-      return next;
-    });
-  }, [crossChecks, eventId, valuationDt]);
-
   const handleRunValidation = async () => {
     if (!eventId || !valuationDt) return;
     setValidating(true);
@@ -202,6 +189,21 @@ const NavDashboard: React.FC = () => {
     ], funds);
   }, [funds]);
 
+  const handleExpandCrossChecks = useCallback((account: string) => {
+    if (expandedFund === account) {
+      setExpandedFund(null);
+      setCrossChecks(null);
+      return;
+    }
+    setExpandedFund(account);
+    setCrossChecks(null);
+    setCrossChecksLoading(true);
+    fetchNavCrossChecks(eventId || '', account, valuationDt)
+      .then(setCrossChecks)
+      .catch(() => setCrossChecks(null))
+      .finally(() => setCrossChecksLoading(false));
+  }, [expandedFund, eventId, valuationDt]);
+
   const handleRowDoubleClick = (account: string, accountName: string) => {
     dispatch({ type: 'SET_FUND', account, accountName, valuationDt });
     navigate(`/events/${eventId}/funds/${account}/trial-balance?valuationDt=${valuationDt}`);
@@ -211,17 +213,26 @@ const NavDashboard: React.FC = () => {
     {
       headerName: '',
       width: 50,
-      cellRenderer: (params: any) => (
-        <IconButton
-          size="small"
-          onClick={(e) => { e.stopPropagation(); handleExpandRow(params.data.account); }}
-          aria-label={expandedRows.has(params.data.account) ? 'Collapse row' : 'Expand row'}
-        >
-          {expandedRows.has(params.data.account) ? <KeyboardArrowDownIcon /> : <KeyboardArrowRightIcon />}
-        </IconButton>
-      ),
       sortable: false,
       filter: false,
+      resizable: false,
+      cellRenderer: (params: any) => {
+        if (!params.data || Math.abs(params.data.tnaDifference) < 0.01) return null;
+        const isExpanded = params.data.account === expandedFund;
+        return (
+          <IconButton
+            size="small"
+            sx={{ p: 0 }}
+            onClick={(e: React.MouseEvent) => {
+              e.stopPropagation();
+              handleExpandCrossChecks(params.data.account);
+            }}
+            aria-label={isExpanded ? 'Collapse cross-checks' : 'Expand cross-checks'}
+          >
+            {isExpanded ? <KeyboardArrowUpIcon fontSize="small" /> : <KeyboardArrowDownIcon fontSize="small" />}
+          </IconButton>
+        );
+      },
     },
     { field: 'valuationDt', headerName: 'Valuation Dt', width: 120 },
     { field: 'account', headerName: 'Account', width: 110 },
@@ -261,43 +272,7 @@ const NavDashboard: React.FC = () => {
       width: 100,
       cellRenderer: (params: any) => <ValidationStatus status={params.value} />,
     },
-  ], [expandedRows, handleExpandRow]);
-
-  const CrossCheckDetail: React.FC<{ account: string }> = React.memo(({ account }) => {
-    const data = crossChecks[account];
-    if (!data) return <Box sx={{ p: 2 }}><CircularProgress size={20} /></Box>;
-
-    const renderCheckRow = (label: string, row: { lhsValue: number; rhsValue: number; difference: number; validationStatus: ValidationStatusType }) => (
-      <TableRow>
-        <TableCell>{label}</TableCell>
-        <TableCell align="right">{formatCurrency(row.lhsValue)}</TableCell>
-        <TableCell align="right">{formatCurrency(row.rhsValue)}</TableCell>
-        <TableCell align="right" sx={{ color: row.difference < 0 ? '#d32f2f' : undefined }}>{formatCurrency(row.difference)}</TableCell>
-        <TableCell align="center"><ValidationStatus status={row.validationStatus} /></TableCell>
-      </TableRow>
-    );
-
-    return (
-      <Box sx={{ p: 2, bgcolor: 'grey.50' }}>
-        <Typography variant="subtitle2" sx={{ mb: 1 }}>Cross-Check Validations</Typography>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>Check</TableCell>
-              <TableCell align="right">LHS</TableCell>
-              <TableCell align="right">RHS</TableCell>
-              <TableCell align="right">Difference</TableCell>
-              <TableCell align="center">Status</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {renderCheckRow('Ledger BS Compare Check', data.bsCheck)}
-            {renderCheckRow('Ledger INCST Compare Check', data.incstCheck)}
-          </TableBody>
-        </Table>
-      </Box>
-    );
-  });
+  ], [expandedFund, handleExpandCrossChecks]);
 
   const defaultColDef = useMemo(() => ({ sortable: true, filter: true, resizable: true }), []);
 
@@ -371,58 +346,118 @@ const NavDashboard: React.FC = () => {
           )}
         </Paper>
 
-        {/* NAV Compare Grid */}
-        <Stack direction="row" justifyContent="flex-end" sx={{ mb: 0.5 }}>
-          <Button size="small" startIcon={<FileDownloadIcon />} variant="outlined" onClick={handleExportNavGrid}>
-            Export to Excel
-          </Button>
-        </Stack>
-        <Box sx={{ flex: 1, minHeight: 400 }} role="region" aria-label="NAV Compare data grid">
-          {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress aria-label="Loading NAV data" /></Box>
-          ) : (
-            <Box
-              className="ag-theme-alpine"
-              sx={{ height: '100%', width: '100%', '& .ag-cell:focus-within': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 } }}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                handleExportNavGrid();
-              }}
-            >
-              <AgGridReact<NavCompareRow>
-                modules={[AllCommunityModule]}
-                theme="legacy"
-                rowData={funds}
-                columnDefs={columnDefs}
-                defaultColDef={defaultColDef}
-                rowSelection="single"
-                animateRows
-                onRowClicked={(e: RowClickedEvent<NavCompareRow>) => {
-                  if (e.data) {
-                    setSelectedFund(e.data.account);
-                    dispatch({ type: 'SET_NAV_SELECTED_FUND', account: e.data.account });
-                  }
-                }}
-                onRowDoubleClicked={(e: RowDoubleClickedEvent<NavCompareRow>) => {
-                  if (e.data) handleRowDoubleClick(e.data.account, e.data.accountName);
-                }}
-                getRowId={(params) => params.data.account}
-              />
-            </Box>
-          )}
+        {/* Reconciliation / Validation Tabs */}
+        <Paper sx={{ mb: 1 }} elevation={0}>
+          <Tabs
+            value={state.tabs.navDashboard}
+            onChange={(_, v: DrillDownTab) => dispatch({ type: 'SET_TAB', screen: 'navDashboard', tab: v })}
+            sx={{ minHeight: 36, '& .MuiTab-root': { minHeight: 36, py: 0.5, textTransform: 'none' } }}
+          >
+            <Tab label="Reconciliation" value="reconciliation" />
+            <Tab label="Validation" value="validation" />
+          </Tabs>
+        </Paper>
 
-          {/* Expanded cross-check rows rendered below grid */}
-          {funds.filter((f) => expandedRows.has(f.account)).map((f) => (
-            <Collapse key={f.account} in={expandedRows.has(f.account)}>
-              <Paper variant="outlined" sx={{ mx: 1, mb: 1 }}>
-                <Typography variant="caption" fontWeight={600} sx={{ px: 2, pt: 1, display: 'block' }}>
-                  {f.accountName} ({f.account})
-                </Typography>
-                <CrossCheckDetail account={f.account} />
+        {state.tabs.navDashboard === 'reconciliation' ? (
+          <>
+            {/* NAV Compare Grid */}
+            <Stack direction="row" justifyContent="flex-end" sx={{ mb: 0.5 }}>
+              <Button size="small" startIcon={<FileDownloadIcon />} variant="outlined" onClick={handleExportNavGrid}>
+                Export to Excel
+              </Button>
+            </Stack>
+            <Box sx={{ flex: 1, minHeight: 300 }} role="region" aria-label="NAV Compare data grid">
+              {loading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress aria-label="Loading NAV data" /></Box>
+              ) : (
+                <Box
+                  className="ag-theme-alpine"
+                  sx={{ height: '100%', width: '100%', '& .ag-cell:focus-within': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 } }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    handleExportNavGrid();
+                  }}
+                >
+                  <AgGridReact<NavCompareRow>
+                    modules={[AllCommunityModule]}
+                    theme="legacy"
+                    rowData={funds}
+                    columnDefs={columnDefs}
+                    defaultColDef={defaultColDef}
+                    rowSelection="single"
+                    animateRows
+                    onRowClicked={(e: RowClickedEvent<NavCompareRow>) => {
+                      if (e.data) {
+                        setSelectedFund(e.data.account);
+                        dispatch({ type: 'SET_NAV_SELECTED_FUND', account: e.data.account });
+                      }
+                    }}
+                    onRowDoubleClicked={(e: RowDoubleClickedEvent<NavCompareRow>) => {
+                      if (e.data) handleRowDoubleClick(e.data.account, e.data.accountName);
+                    }}
+                    getRowId={(params) => params.data.account}
+                  />
+                </Box>
+              )}
+            </Box>
+
+            {/* Cross-Check Detail Panel */}
+            <Collapse in={!!expandedFund} unmountOnExit>
+              <Paper sx={{ p: 2, mt: 1 }} elevation={1}>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                  <Typography variant="subtitle2">
+                    Internal Checks — {funds.find((f) => f.account === expandedFund)?.accountName || expandedFund}
+                  </Typography>
+                  <IconButton size="small" onClick={() => { setExpandedFund(null); setCrossChecks(null); }}>
+                    <KeyboardArrowUpIcon fontSize="small" />
+                  </IconButton>
+                </Stack>
+                {crossChecksLoading ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}><CircularProgress size={24} /></Box>
+                ) : crossChecks ? (
+                  <TableContainer>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 600 }}>Check</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 600 }}>LHS Value</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 600 }}>RHS Value</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 600 }}>Difference</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {[
+                          { key: 'bsCheck', label: 'Ledger BS Compare Check', data: crossChecks.bsCheck },
+                          { key: 'incstCheck', label: 'Ledger INCST Compare Check', data: crossChecks.incstCheck },
+                        ].map((row) => (
+                          <TableRow key={row.key} sx={{ '&:last-child td': { borderBottom: 0 } }}>
+                            <TableCell>{row.label}</TableCell>
+                            <TableCell align="right">${formatCurrency(row.data.lhsValue)}</TableCell>
+                            <TableCell align="right">${formatCurrency(row.data.rhsValue)}</TableCell>
+                            <TableCell
+                              align="right"
+                              sx={{ color: row.data.difference !== 0 ? '#d32f2f' : undefined, fontWeight: row.data.difference !== 0 ? 600 : undefined }}
+                            >
+                              ${formatCurrency(row.data.difference)}
+                            </TableCell>
+                            <TableCell><ValidationStatus status={row.data.validationStatus} /></TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">No cross-check data available.</Typography>
+                )}
               </Paper>
             </Collapse>
-          ))}
-        </Box>
+          </>
+        ) : (
+          <Box sx={{ flex: 1, overflow: 'auto' }}>
+            <NavValidationView eventId={eventId || ''} valuationDt={valuationDt} />
+          </Box>
+        )}
       </Box>
 
       {/* AI Commentary Panel */}

@@ -21,6 +21,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
@@ -48,8 +50,10 @@ import {
   BasisLotRow,
   ComparisonField,
   AICommentaryData,
+  DrillDownTab,
 } from '../../types';
 import { exportToCsv } from '../../utils/exportToExcel';
+import PositionValidationView from '../../components/validation/PositionValidationView';
 
 const formatCurrency = (v: number | null | undefined) => {
   if (v == null) return '';
@@ -324,112 +328,132 @@ const PositionDrillDown: React.FC = () => {
           </Stack>
         </Paper>
 
-        {/* View Toggle */}
-        <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-          <ToggleButtonGroup
-            value={viewMode}
-            exclusive
-            onChange={(_, v) => v && setViewMode(v)}
-            size="small"
+        {/* Reconciliation / Validation Tabs */}
+        <Paper sx={{ mb: 1 }} elevation={0}>
+          <Tabs
+            value={state.tabs.positionDrillDown}
+            onChange={(_, v: DrillDownTab) => dispatch({ type: 'SET_TAB', screen: 'positionDrillDown', tab: v })}
+            sx={{ minHeight: 36, '& .MuiTab-root': { minHeight: 36, py: 0.5, textTransform: 'none' } }}
           >
-            <ToggleButton value="positions">Position Compare</ToggleButton>
-            <ToggleButton value="basis-lot">Basis Lot Check</ToggleButton>
-          </ToggleButtonGroup>
-          <Button
-            size="small"
-            startIcon={<AutoFixHighIcon />}
-            variant="outlined"
-            onClick={handleRequestAnalysis}
-            disabled={aiLoading || !selectedAssetId}
-          >
-            Request Analysis
-          </Button>
-        </Stack>
+            <Tab label="Reconciliation" value="reconciliation" />
+            <Tab label="Validation" value="validation" />
+          </Tabs>
+        </Paper>
 
-        {/* Position Compare Grid or Basis Lot Grid */}
-        <Box sx={{ flex: 1, minHeight: 300 }} role="region" aria-label="Position data grid">
-          {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress aria-label="Loading position data" /></Box>
-          ) : viewMode === 'positions' ? (
-            <Box className="ag-theme-alpine" sx={{ height: '100%', width: '100%', '& .ag-cell:focus-within': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 } }}>
-              <AgGridReact<PositionCompareRow>
-                modules={[AllCommunityModule]}
-                theme="legacy"
-                rowData={positions}
-                columnDefs={columnDefs}
-                defaultColDef={defaultColDef}
-                animateRows
-                onRowClicked={(e) => {
-                  if (e.data) {
-                    setSelectedAssetId(e.data.assetId);
-                    dispatch({ type: 'SET_POS_SELECTED', assetId: e.data.assetId });
-                  }
-                }}
-                getRowId={(params) => params.data.assetId}
-              />
-            </Box>
-          ) : (
-            <Box className="ag-theme-alpine" sx={{ height: '100%', width: '100%', '& .ag-cell:focus-within': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 } }}>
-              <AgGridReact<BasisLotRow>
-                modules={[AllCommunityModule]}
-                theme="legacy"
-                rowData={basisLots}
-                columnDefs={basisLotColumnDefs}
-                defaultColDef={defaultColDef}
-                animateRows
-                getRowId={(params) => params.data.assetId}
-              />
-            </Box>
-          )}
+        {state.tabs.positionDrillDown === 'reconciliation' ? (
+          <>
+            {/* View Toggle */}
+            <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
+              <ToggleButtonGroup
+                value={viewMode}
+                exclusive
+                onChange={(_, v) => v && setViewMode(v)}
+                size="small"
+              >
+                <ToggleButton value="positions">Position Compare</ToggleButton>
+                <ToggleButton value="basis-lot">Basis Lot Check</ToggleButton>
+              </ToggleButtonGroup>
+              <Button
+                size="small"
+                startIcon={<AutoFixHighIcon />}
+                variant="outlined"
+                onClick={handleRequestAnalysis}
+                disabled={aiLoading || !selectedAssetId}
+              >
+                Request Analysis
+              </Button>
+            </Stack>
 
-          {/* Expanded tax lot detail rows */}
-          {viewMode === 'positions' && positions.filter((p) => expandedRows.has(p.assetId)).map((pos) => {
-            const lots = taxLots[pos.assetId];
-            return (
-              <Collapse key={pos.assetId} in>
-                <Paper variant="outlined" sx={{ mx: 1, mb: 1, p: 2 }}>
-                  <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                    Tax Lot Detail — {pos.issueDescription} ({pos.assetId})
-                  </Typography>
-                  {!lots ? <CircularProgress size={20} /> : lots.length === 0 ? (
-                    <Typography variant="body2" color="text.secondary">No tax lots found</Typography>
-                  ) : (
-                    <Box sx={{ overflowX: 'auto' }}>
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Transaction ID</TableCell>
-                            <TableCell>Trade Date</TableCell>
-                            <TableCell>Settle Date</TableCell>
-                            <TableCell align="right" colSpan={3}>Shares (Inc / BNY / Var)</TableCell>
-                            <TableCell align="right" colSpan={3}>Orig Cost (Inc / BNY / Var)</TableCell>
-                            <TableCell align="right" colSpan={3}>Book Value (Inc / BNY / Var)</TableCell>
-                            <TableCell align="right" colSpan={3}>Market Value (Inc / BNY / Var)</TableCell>
-                            <TableCell>Broker</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {lots.map((lot) => (
-                            <TableRow key={lot.transactionId}>
-                              <TableCell>{lot.transactionId}</TableCell>
-                              <TableCell>{lot.lotTradeDate}</TableCell>
-                              <TableCell>{lot.lotSettleDate}</TableCell>
-                              {renderTaxLotField(lot.shares)}
-                              {renderTaxLotField(lot.origCostBase)}
-                              {renderTaxLotField(lot.bookValueBase)}
-                              {renderTaxLotField(lot.marketValueBase)}
-                              <TableCell>{lot.brokerCode}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </Box>
-                  )}
-                </Paper>
-              </Collapse>
-            );
-          })}
-        </Box>
+            {/* Position Compare Grid or Basis Lot Grid */}
+            <Box sx={{ flex: 1, minHeight: 300 }} role="region" aria-label="Position data grid">
+              {loading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress aria-label="Loading position data" /></Box>
+              ) : viewMode === 'positions' ? (
+                <Box className="ag-theme-alpine" sx={{ height: '100%', width: '100%', '& .ag-cell:focus-within': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 } }}>
+                  <AgGridReact<PositionCompareRow>
+                    modules={[AllCommunityModule]}
+                    theme="legacy"
+                    rowData={positions}
+                    columnDefs={columnDefs}
+                    defaultColDef={defaultColDef}
+                    animateRows
+                    onRowClicked={(e) => {
+                      if (e.data) {
+                        setSelectedAssetId(e.data.assetId);
+                        dispatch({ type: 'SET_POS_SELECTED', assetId: e.data.assetId });
+                      }
+                    }}
+                    getRowId={(params) => params.data.assetId}
+                  />
+                </Box>
+              ) : (
+                <Box className="ag-theme-alpine" sx={{ height: '100%', width: '100%', '& .ag-cell:focus-within': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 } }}>
+                  <AgGridReact<BasisLotRow>
+                    modules={[AllCommunityModule]}
+                    theme="legacy"
+                    rowData={basisLots}
+                    columnDefs={basisLotColumnDefs}
+                    defaultColDef={defaultColDef}
+                    animateRows
+                    getRowId={(params) => params.data.assetId}
+                  />
+                </Box>
+              )}
+
+              {/* Expanded tax lot detail rows */}
+              {viewMode === 'positions' && positions.filter((p) => expandedRows.has(p.assetId)).map((pos) => {
+                const lots = taxLots[pos.assetId];
+                return (
+                  <Collapse key={pos.assetId} in>
+                    <Paper variant="outlined" sx={{ mx: 1, mb: 1, p: 2 }}>
+                      <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                        Tax Lot Detail — {pos.issueDescription} ({pos.assetId})
+                      </Typography>
+                      {!lots ? <CircularProgress size={20} /> : lots.length === 0 ? (
+                        <Typography variant="body2" color="text.secondary">No tax lots found</Typography>
+                      ) : (
+                        <Box sx={{ overflowX: 'auto' }}>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow>
+                                <TableCell>Transaction ID</TableCell>
+                                <TableCell>Trade Date</TableCell>
+                                <TableCell>Settle Date</TableCell>
+                                <TableCell align="right" colSpan={3}>Shares (Inc / BNY / Var)</TableCell>
+                                <TableCell align="right" colSpan={3}>Orig Cost (Inc / BNY / Var)</TableCell>
+                                <TableCell align="right" colSpan={3}>Book Value (Inc / BNY / Var)</TableCell>
+                                <TableCell align="right" colSpan={3}>Market Value (Inc / BNY / Var)</TableCell>
+                                <TableCell>Broker</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {lots.map((lot) => (
+                                <TableRow key={lot.transactionId}>
+                                  <TableCell>{lot.transactionId}</TableCell>
+                                  <TableCell>{lot.lotTradeDate}</TableCell>
+                                  <TableCell>{lot.lotSettleDate}</TableCell>
+                                  {renderTaxLotField(lot.shares)}
+                                  {renderTaxLotField(lot.origCostBase)}
+                                  {renderTaxLotField(lot.bookValueBase)}
+                                  {renderTaxLotField(lot.marketValueBase)}
+                                  <TableCell>{lot.brokerCode}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </Box>
+                      )}
+                    </Paper>
+                  </Collapse>
+                );
+              })}
+            </Box>
+          </>
+        ) : (
+          <Box sx={{ flex: 1, overflow: 'auto' }}>
+            <PositionValidationView account={account || ''} valuationDt={valuationDt} category={category} />
+          </Box>
+        )}
 
         {/* Position Roll-Up Validation Footer */}
         <Paper sx={{ p: 2, mt: 1 }} elevation={1}>

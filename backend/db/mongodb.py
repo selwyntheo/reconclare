@@ -105,4 +105,8 @@ COLLECTIONS = {
     "glAccountMappings": "glAccountMappings",
     "refIncumbentGLAccounts": "refIncumbentGLAccounts",
     "refEagleGLAccounts": "refEagleGLAccounts",
+    # Classification Mapping Tables (Section 10)
+    "convAssetClassification": "convAssetClassification",
+    "convTransClassification": "convTransClassification",
+    "convLedgerCategoryDerivation": "convLedgerCategoryDerivation",
 }
