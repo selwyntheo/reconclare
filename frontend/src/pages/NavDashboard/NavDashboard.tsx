@@ -47,10 +47,14 @@ import {
   fetchAvailableDates,
   fetchAIAnalysis,
   runSequentialValidation,
+  fetchAllocations,
 } from '../../services/api';
 import { NavCompareRow, CrossCheckResult, AICommentaryData, CheckType, DrillDownTab } from '../../types';
+import { ResolutionBreakCategory } from '../../types/breakResolution';
 import { exportToCsv } from '../../utils/exportToExcel';
 import NavValidationView from '../../components/validation/NavValidationView';
+import ReviewStatusBadge from '../../components/shared/ReviewStatusBadge';
+import { useAuth } from '../../context/AuthContext';
 
 const CHECK_SUITE_OPTIONS: { value: CheckType; label: string; level: string }[] = [
   { value: 'NAV_TO_LEDGER', label: 'NAV to Ledger', level: 'L0' },
@@ -72,6 +76,9 @@ const NavDashboard: React.FC = () => {
   const navigate = useNavigate();
   const state = useDrillDownState();
   const dispatch = useDrillDownDispatch();
+  const { permissions } = useAuth();
+  const isReadOnly = permissions.screens.navDashboard.readOnly;
+  const canSignOff = permissions.screens.navDashboard.canSignOff;
 
   const [valuationDt, setValuationDt] = useState(searchParams.get('valuationDt') || '');
   const [, setAvailableDates] = useState<string[]>([]);
@@ -87,6 +94,8 @@ const NavDashboard: React.FC = () => {
   const [expandedFund, setExpandedFund] = useState<string | null>(null);
   const [crossChecks, setCrossChecks] = useState<CrossCheckResult | null>(null);
   const [crossChecksLoading, setCrossChecksLoading] = useState(false);
+  const [allocations, setAllocations] = useState<Record<string, { reviewer: string; reviewStatus: string }>>({});
+  const [categoryFilter, setCategoryFilter] = useState<ResolutionBreakCategory[]>([]);
 
   // Set event context
   useEffect(() => {
@@ -129,6 +138,22 @@ const NavDashboard: React.FC = () => {
         .finally(() => setLoading(false));
     }
   }, [eventId, valuationDt, dispatch]);
+
+  // Load reviewer allocations for selected date
+  useEffect(() => {
+    if (eventId && valuationDt) {
+      fetchAllocations(eventId, valuationDt)
+        .then((data) => {
+          const map: Record<string, { reviewer: string; reviewStatus: string }> = {};
+          for (const a of data) {
+            const key = a.bnyAccount || a.fundAccount;
+            if (key) map[key] = { reviewer: a.reviewer || '', reviewStatus: a.reviewStatus || 'NOT_STARTED' };
+          }
+          setAllocations(map);
+        })
+        .catch(() => setAllocations({}));
+    }
+  }, [eventId, valuationDt]);
 
   // SSE for real-time updates
   useSSE({
@@ -272,7 +297,43 @@ const NavDashboard: React.FC = () => {
       width: 100,
       cellRenderer: (params: any) => <ValidationStatus status={params.value} />,
     },
-  ], [expandedFund, handleExpandCrossChecks]);
+    {
+      headerName: 'Reviewer',
+      width: 130,
+      valueGetter: (params: any) => allocations[params.data?.account]?.reviewer || '',
+    },
+    {
+      headerName: 'Review Status',
+      width: 130,
+      cellRenderer: (params: any) => {
+        const status = allocations[params.data?.account]?.reviewStatus;
+        if (!status) return null;
+        return <ReviewStatusBadge status={status as any} />;
+      },
+    },
+    {
+      headerName: 'Actions',
+      width: 120,
+      sortable: false,
+      filter: false,
+      cellRenderer: (params: any) => {
+        if (!params.data) return null;
+        return (
+          <Button
+            size="small"
+            variant="text"
+            sx={{ textTransform: 'none', fontSize: '0.75rem', p: 0 }}
+            onClick={(e: React.MouseEvent) => {
+              e.stopPropagation();
+              navigate(`/events/${eventId}/nav-dashboard/share-class/${params.data.account}?valuationDt=${valuationDt}`);
+            }}
+          >
+            Share Class
+          </Button>
+        );
+      },
+    },
+  ], [expandedFund, handleExpandCrossChecks, eventId, valuationDt, navigate, allocations]);
 
   const defaultColDef = useMemo(() => ({ sortable: true, filter: true, resizable: true }), []);
 
@@ -295,48 +356,63 @@ const NavDashboard: React.FC = () => {
                 InputLabelProps={{ shrink: true }}
               />
             </Box>
-            <Box>
-              <Typography variant="caption" fontWeight={600}>Check Suite</Typography>
-              <FormGroup row sx={{ mt: 0.5 }}>
-                {CHECK_SUITE_OPTIONS.map((opt) => (
-                  <FormControlLabel
-                    key={opt.value}
-                    control={
-                      <Checkbox
-                        size="small"
-                        checked={checkSuite.includes(opt.value)}
-                        onChange={(e) => {
-                          if (e.target.checked) setCheckSuite((prev) => [...prev, opt.value]);
-                          else setCheckSuite((prev) => prev.filter((c) => c !== opt.value));
-                        }}
+            {!isReadOnly && (
+              <>
+                <Box>
+                  <Typography variant="caption" fontWeight={600}>Check Suite</Typography>
+                  <FormGroup row sx={{ mt: 0.5 }}>
+                    {CHECK_SUITE_OPTIONS.map((opt) => (
+                      <FormControlLabel
+                        key={opt.value}
+                        control={
+                          <Checkbox
+                            size="small"
+                            checked={checkSuite.includes(opt.value)}
+                            onChange={(e) => {
+                              if (e.target.checked) setCheckSuite((prev) => [...prev, opt.value]);
+                              else setCheckSuite((prev) => prev.filter((c) => c !== opt.value));
+                            }}
+                          />
+                        }
+                        label={<Typography variant="caption">{opt.label} ({opt.level})</Typography>}
                       />
-                    }
-                    label={<Typography variant="caption">{opt.label} ({opt.level})</Typography>}
-                  />
-                ))}
-              </FormGroup>
-            </Box>
-            <Box>
-              <Typography variant="caption" fontWeight={600}>Fund Filter</Typography>
-              <RadioGroup row value={fundFilter} onChange={(e) => setFundFilter(e.target.value as any)} sx={{ mt: 0.5 }}>
-                <FormControlLabel value="all" control={<Radio size="small" />} label={<Typography variant="caption">All Funds</Typography>} />
-                <FormControlLabel value="selected" control={<Radio size="small" />} label={<Typography variant="caption">Selected Only</Typography>} />
-              </RadioGroup>
-            </Box>
-            <Stack direction="row" spacing={1} sx={{ mt: 'auto', pt: 2 }}>
-              <Button
-                variant="contained"
-                startIcon={<PlayArrowIcon />}
-                onClick={handleRunValidation}
-                disabled={validating || !valuationDt}
-                size="small"
-              >
-                {validating ? 'Running...' : 'Run Validation'}
-              </Button>
-              <Button variant="outlined" startIcon={<ScheduleIcon />} size="small" disabled>
-                Schedule
-              </Button>
-            </Stack>
+                    ))}
+                  </FormGroup>
+                </Box>
+                <Box>
+                  <Typography variant="caption" fontWeight={600}>Fund Filter</Typography>
+                  <RadioGroup row value={fundFilter} onChange={(e) => setFundFilter(e.target.value as any)} sx={{ mt: 0.5 }}>
+                    <FormControlLabel value="all" control={<Radio size="small" />} label={<Typography variant="caption">All Funds</Typography>} />
+                    <FormControlLabel value="selected" control={<Radio size="small" />} label={<Typography variant="caption">Selected Only</Typography>} />
+                  </RadioGroup>
+                </Box>
+                <Stack direction="row" spacing={1} sx={{ mt: 'auto', pt: 2 }}>
+                  <Button
+                    variant="contained"
+                    startIcon={<PlayArrowIcon />}
+                    onClick={handleRunValidation}
+                    disabled={validating || !valuationDt}
+                    size="small"
+                  >
+                    {validating ? 'Running...' : 'Run Validation'}
+                  </Button>
+                  <Button variant="outlined" startIcon={<ScheduleIcon />} size="small" disabled>
+                    Schedule
+                  </Button>
+                </Stack>
+              </>
+            )}
+            {canSignOff && (
+              <Stack direction="row" spacing={1} sx={{ mt: 'auto', pt: 2 }}>
+                <Button
+                  variant="contained"
+                  color="success"
+                  size="small"
+                >
+                  Sign-Off
+                </Button>
+              </Stack>
+            )}
           </Stack>
           {validating && (
             <Box sx={{ mt: 1 }} role="status" aria-live="polite">
@@ -344,6 +420,54 @@ const NavDashboard: React.FC = () => {
               <LinearProgress sx={{ mt: 0.5 }} aria-label="Validation progress" />
             </Box>
           )}
+        </Paper>
+
+        {/* Break Category Filter */}
+        <Paper sx={{ mb: 1, px: 2, py: 0.5, display: 'flex', alignItems: 'center', gap: 1 }} elevation={0}>
+          <Typography variant="caption" fontWeight={600} sx={{ mr: 1 }}>Filter by Category:</Typography>
+          {(['KNOWN_DIFFERENCE', 'BNY_TO_RESOLVE', 'INCUMBENT_TO_RESOLVE', 'UNDER_INVESTIGATION', 'MATCH'] as ResolutionBreakCategory[]).map((cat) => (
+            <Button
+              key={cat}
+              size="small"
+              variant={categoryFilter.includes(cat) ? 'contained' : 'outlined'}
+              sx={{ textTransform: 'none', fontSize: '0.7rem', py: 0, minHeight: 24 }}
+              onClick={() => setCategoryFilter((prev) =>
+                prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+              )}
+            >
+              {cat.replace(/_/g, ' ')}
+            </Button>
+          ))}
+          {categoryFilter.length > 0 && (
+            <Button size="small" variant="text" sx={{ textTransform: 'none', fontSize: '0.7rem' }} onClick={() => setCategoryFilter([])}>
+              Clear
+            </Button>
+          )}
+        </Paper>
+
+        {/* NAV Sub-View Navigation */}
+        <Paper sx={{ mb: 1 }} elevation={0}>
+          <Stack direction="row" spacing={1} sx={{ px: 1, pt: 0.5 }}>
+            <Button size="small" variant="text" sx={{ fontWeight: 600, textTransform: 'none' }} disabled>
+              Fund Level
+            </Button>
+            <Button
+              size="small"
+              variant="text"
+              sx={{ textTransform: 'none' }}
+              onClick={() => navigate(`/events/${eventId}/nav-dashboard/scorecard?valuationDt=${valuationDt}`)}
+            >
+              Client Scorecard
+            </Button>
+            <Button
+              size="small"
+              variant="text"
+              sx={{ textTransform: 'none' }}
+              onClick={() => navigate(`/events/${eventId}/nav-dashboard/rag-tracker`)}
+            >
+              RAG Status
+            </Button>
+          </Stack>
         </Paper>
 
         {/* Reconciliation / Validation Tabs */}

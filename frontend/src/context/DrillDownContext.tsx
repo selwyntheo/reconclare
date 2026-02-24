@@ -58,6 +58,15 @@ interface DrillDownState {
     trialBalance: DrillDownTab;
     positionDrillDown: DrillDownTab;
   };
+  // Break Resolution view states
+  breakResolution: {
+    shareClassView: { account: string | null };
+    scorecardView: { valuationDt: string | null };
+    ragTrackerView: { selectedFund: string | null; selectedDate: string | null };
+    positionSubView: string | null; // 'share-breaks' | 'price-breaks' | 'tax-lots'
+    incomeView: string | null; // 'dividends' | 'fixed-income'
+    derivativesView: string | null; // 'forwards' | 'futures'
+  };
 }
 
 const initialState: DrillDownState = {
@@ -104,6 +113,14 @@ const initialState: DrillDownState = {
     trialBalance: 'reconciliation',
     positionDrillDown: 'reconciliation',
   },
+  breakResolution: {
+    shareClassView: { account: null },
+    scorecardView: { valuationDt: null },
+    ragTrackerView: { selectedFund: null, selectedDate: null },
+    positionSubView: null,
+    incomeView: null,
+    derivativesView: null,
+  },
 };
 
 // ── Actions ──────────────────────────────────────────────────
@@ -133,7 +150,13 @@ type DrillDownAction =
   | { type: 'SET_AI_ANALYSIS'; analysis: AICommentaryData }
   | { type: 'SET_AI_LOADING'; loading: boolean }
   | { type: 'UPDATE_NAV_ROW'; account: string; updates: Partial<NavCompareRow> }
-  | { type: 'SET_TAB'; screen: 'navDashboard' | 'trialBalance' | 'positionDrillDown'; tab: DrillDownTab };
+  | { type: 'SET_TAB'; screen: 'navDashboard' | 'trialBalance' | 'positionDrillDown'; tab: DrillDownTab }
+  | { type: 'SET_SHARE_CLASS_VIEW'; account: string }
+  | { type: 'SET_SCORECARD_VIEW'; valuationDt: string }
+  | { type: 'SET_RAG_TRACKER_SELECTION'; fund: string | null; date: string | null }
+  | { type: 'SET_POSITION_SUB_VIEW'; view: string | null }
+  | { type: 'SET_INCOME_VIEW'; view: string | null }
+  | { type: 'SET_DERIVATIVES_VIEW'; view: string | null };
 
 // ── Reducer ──────────────────────────────────────────────────
 
@@ -336,6 +359,24 @@ function drillDownReducer(state: DrillDownState, action: DrillDownAction): Drill
         ...state,
         tabs: { ...state.tabs, [action.screen]: action.tab },
       };
+
+    case 'SET_SHARE_CLASS_VIEW':
+      return { ...state, breakResolution: { ...state.breakResolution, shareClassView: { account: action.account } } };
+
+    case 'SET_SCORECARD_VIEW':
+      return { ...state, breakResolution: { ...state.breakResolution, scorecardView: { valuationDt: action.valuationDt } } };
+
+    case 'SET_RAG_TRACKER_SELECTION':
+      return { ...state, breakResolution: { ...state.breakResolution, ragTrackerView: { selectedFund: action.fund, selectedDate: action.date } } };
+
+    case 'SET_POSITION_SUB_VIEW':
+      return { ...state, breakResolution: { ...state.breakResolution, positionSubView: action.view } };
+
+    case 'SET_INCOME_VIEW':
+      return { ...state, breakResolution: { ...state.breakResolution, incomeView: action.view } };
+
+    case 'SET_DERIVATIVES_VIEW':
+      return { ...state, breakResolution: { ...state.breakResolution, derivativesView: action.view } };
 
     default:
       return state;

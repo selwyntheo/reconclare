@@ -35,6 +35,9 @@ import SmartToyIcon from '@mui/icons-material/SmartToy';
 import PersonIcon from '@mui/icons-material/Person';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import ScheduleIcon from '@mui/icons-material/Schedule';
+import CategoryIcon from '@mui/icons-material/Category';
+import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
+import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
 import {
   Dialog,
@@ -47,9 +50,10 @@ import {
   RadioGroup,
   LinearProgress,
 } from '@mui/material';
-import { fetchEvents, fetchActivity, runValidation } from '../../services/api';
+import { fetchEvents, fetchActivity, runValidation, fetchAllocations, fetchBreakSummary } from '../../services/api';
 import { ConversionEvent, EventStatus, ActivityFeedItem, CheckType } from '../../types';
 import { useDrillDownDispatch } from '../../context/DrillDownContext';
+import { useAuth } from '../../context/AuthContext';
 
 const CHECK_SUITE_OPTIONS: { value: CheckType; label: string }[] = [
   { value: 'NAV_TO_LEDGER', label: 'NAV to Ledger' },
@@ -84,6 +88,9 @@ const activityIcons: Record<ActivityFeedItem['type'], React.ReactNode> = {
   AI_ANALYSIS: <SmartToyIcon fontSize="small" color="secondary" />,
   HUMAN_ANNOTATION: <PersonIcon fontSize="small" color="warning" />,
   STATUS_CHANGE: <SwapHorizIcon fontSize="small" color="success" />,
+  BREAK_CATEGORIZED: <CategoryIcon fontSize="small" color="info" />,
+  SIGN_OFF: <VerifiedUserIcon fontSize="small" color="success" />,
+  AUTO_ASSIGNMENT: <AssignmentIndIcon fontSize="small" color="primary" />,
 };
 
 const formatGoLiveCountdown = (targetGoLiveDate: string): string => {
@@ -110,12 +117,23 @@ const EventDashboard: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const dispatch = useDrillDownDispatch();
+  const { permissions } = useAuth();
+  const isReadOnly = permissions.screens.eventDashboard.readOnly;
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [search, setSearch] = useState('');
   const [assignedToMe, setAssignedToMe] = useState(false);
   const [events, setEvents] = useState<ConversionEvent[]>([]);
   const [activityFeed, setActivityFeed] = useState<ActivityFeedItem[]>([]);
   const [, setLoading] = useState(true);
+  // Task 22.1: Reviewer allocation summary
+  const [allocSummary, setAllocSummary] = useState<Record<string, { assigned: number; total: number }>>({});
+
+  // Task 22.2: Break category distribution for tooltip
+  const [breakSummaries, setBreakSummaries] = useState<Record<string, Record<string, { count: number; totalAmount: number }>>>({});
+
+  // Task 22.3: Review completion indicator
+  const [reviewCompletion, setReviewCompletion] = useState<Record<string, { completed: number; total: number }>>({});
+
   // Run Validation modal state
   const [runModalOpen, setRunModalOpen] = useState(false);
   const [runModalEvent, setRunModalEvent] = useState<ConversionEvent | null>(null);
@@ -134,6 +152,43 @@ const EventDashboard: React.FC = () => {
         ]);
         setEvents(evts as ConversionEvent[]);
         setActivityFeed(acts as ActivityFeedItem[]);
+
+        // Task 22.1 & 22.3: Fetch allocation summaries for each event
+        const allocMap: Record<string, { assigned: number; total: number }> = {};
+        const completionMap: Record<string, { completed: number; total: number }> = {};
+        await Promise.all(
+          (evts as ConversionEvent[]).map(async (evt) => {
+            try {
+              const allocs = await fetchAllocations(evt.eventId);
+              const totalAllocs = allocs.length;
+              const assignedCount = allocs.filter((a: any) => a.reviewer).length;
+              allocMap[evt.eventId] = { assigned: assignedCount, total: totalAllocs };
+
+              // Task 22.3: Compute review completion from most recent valuation date
+              const completedCount = allocs.filter((a: any) => a.reviewStatus === 'COMPLETE').length;
+              completionMap[evt.eventId] = { completed: completedCount, total: totalAllocs };
+            } catch {
+              allocMap[evt.eventId] = { assigned: 0, total: 0 };
+              completionMap[evt.eventId] = { completed: 0, total: 0 };
+            }
+          })
+        );
+        setAllocSummary(allocMap);
+        setReviewCompletion(completionMap);
+
+        // Task 22.2: Fetch break summaries for each event
+        const breakMap: Record<string, Record<string, { count: number; totalAmount: number }>> = {};
+        await Promise.all(
+          (evts as ConversionEvent[]).map(async (evt) => {
+            try {
+              const summary = await fetchBreakSummary(evt.eventId);
+              breakMap[evt.eventId] = summary;
+            } catch {
+              breakMap[evt.eventId] = {};
+            }
+          })
+        );
+        setBreakSummaries(breakMap);
       } catch (err) {
         console.error('Failed to load dashboard data:', err);
       } finally {
@@ -205,6 +260,25 @@ const EventDashboard: React.FC = () => {
 
   const getAttentionCount = (event: ConversionEvent) =>
     event.funds.filter((f) => f.status === 'FAILED' || (f.breakCount && f.breakCount > 0)).length;
+
+  // Task 22.2: Build break category tooltip text
+  const getBreakTooltipText = (eventId: string): string => {
+    const summary = breakSummaries[eventId];
+    if (!summary || Object.keys(summary).length === 0) return 'No break data available';
+    return Object.entries(summary)
+      .map(([category, data]) => {
+        const label = category.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+        return `${label}: ${data.count}`;
+      })
+      .join(', ');
+  };
+
+  // Task 22.3: Compute review completion percentage
+  const getReviewPct = (eventId: string): number => {
+    const comp = reviewCompletion[eventId];
+    if (!comp || comp.total === 0) return 0;
+    return Math.round((comp.completed / comp.total) * 100);
+  };
 
   const getFundSegments = (event: ConversionEvent) => {
     const total = event.funds.length;
@@ -350,7 +424,7 @@ const EventDashboard: React.FC = () => {
                         </Stack>
                       )}
 
-                      {/* 3-Segment Fund Progress Bar */}
+                      {/* 3-Segment Fund Progress Bar — Task 22.2: Wrapped in Tooltip */}
                       <Box sx={{ mt: 2 }}>
                         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
                           <Typography variant="caption" fontWeight={600}>
@@ -360,25 +434,31 @@ const EventDashboard: React.FC = () => {
                             {progress.toFixed(0)}%
                           </Typography>
                         </Stack>
-                        <Box
-                          sx={{
-                            display: 'flex',
-                            height: 8,
-                            borderRadius: 4,
-                            overflow: 'hidden',
-                            bgcolor: alpha(theme.palette.grey[300], 0.3),
-                          }}
+                        <Tooltip
+                          title={getBreakTooltipText(event.eventId)}
+                          placement="top"
+                          arrow
                         >
-                          {passedPct > 0 && (
-                            <Box sx={{ width: `${passedPct}%`, bgcolor: theme.palette.success.main, transition: 'width 0.3s ease' }} />
-                          )}
-                          {attentionPct > 0 && (
-                            <Box sx={{ width: `${attentionPct}%`, bgcolor: theme.palette.warning.main, transition: 'width 0.3s ease' }} />
-                          )}
-                          {failedPct > 0 && (
-                            <Box sx={{ width: `${failedPct}%`, bgcolor: theme.palette.error.main, transition: 'width 0.3s ease' }} />
-                          )}
-                        </Box>
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              height: 8,
+                              borderRadius: 4,
+                              overflow: 'hidden',
+                              bgcolor: alpha(theme.palette.grey[300], 0.3),
+                            }}
+                          >
+                            {passedPct > 0 && (
+                              <Box sx={{ width: `${passedPct}%`, bgcolor: theme.palette.success.main, transition: 'width 0.3s ease' }} />
+                            )}
+                            {attentionPct > 0 && (
+                              <Box sx={{ width: `${attentionPct}%`, bgcolor: theme.palette.warning.main, transition: 'width 0.3s ease' }} />
+                            )}
+                            {failedPct > 0 && (
+                              <Box sx={{ width: `${failedPct}%`, bgcolor: theme.palette.error.main, transition: 'width 0.3s ease' }} />
+                            )}
+                          </Box>
+                        </Tooltip>
                         <Stack direction="row" spacing={1.5} sx={{ mt: 0.5 }}>
                           <Stack direction="row" spacing={0.5} alignItems="center">
                             <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'success.main' }} />
@@ -394,6 +474,13 @@ const EventDashboard: React.FC = () => {
                           </Stack>
                         </Stack>
                       </Box>
+
+                      {/* Task 22.3: Review completion indicator */}
+                      {reviewCompletion[event.eventId] && reviewCompletion[event.eventId].total > 0 && (
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                          {getReviewPct(event.eventId)}% reviewed
+                        </Typography>
+                      )}
 
                       {/* Attention + Sparkline */}
                       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 1.5 }}>
@@ -438,17 +525,26 @@ const EventDashboard: React.FC = () => {
                           ))}
                         </AvatarGroup>
                       </Stack>
+
+                      {/* Task 22.1: Reviewer allocation summary */}
+                      {allocSummary[event.eventId] && allocSummary[event.eventId].total > 0 && (
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                          {allocSummary[event.eventId].assigned} of {allocSummary[event.eventId].total} reviewers assigned
+                        </Typography>
+                      )}
                     </CardContent>
                     <CardActions sx={{ px: 2, pb: 1.5, pt: 0 }}>
                       {(['ACTIVE', 'PARALLEL'] as const).includes(event.status as any) ? (
                         <>
-                          <Button
-                            size="small"
-                            startIcon={<PlayArrowIcon />}
-                            onClick={(e) => { e.stopPropagation(); openRunModal(event); }}
-                          >
-                            Run Validation
-                          </Button>
+                          {!isReadOnly && (
+                            <Button
+                              size="small"
+                              startIcon={<PlayArrowIcon />}
+                              onClick={(e) => { e.stopPropagation(); openRunModal(event); }}
+                            >
+                              Run Validation
+                            </Button>
+                          )}
                           <Button
                             size="small"
                             startIcon={<VisibilityIcon />}
@@ -474,6 +570,17 @@ const EventDashboard: React.FC = () => {
                           Configure
                         </Button>
                       )}
+                      <Button
+                        size="small"
+                        variant="text"
+                        sx={{ textTransform: 'none', fontSize: '0.75rem' }}
+                        onClick={(e: React.MouseEvent) => {
+                          e.stopPropagation();
+                          navigate(`/events/${event.eventId}/allocations`);
+                        }}
+                      >
+                        Roster
+                      </Button>
                     </CardActions>
                   </Card>
                 </Grid>

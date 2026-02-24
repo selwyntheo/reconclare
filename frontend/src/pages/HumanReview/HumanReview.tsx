@@ -31,6 +31,8 @@ import PersonIcon from '@mui/icons-material/Person';
 import SortIcon from '@mui/icons-material/Sort';
 import { fetchReviewableBreaks, annotateBreak } from '../../services/api';
 import { BreakRecord, BreakCategory, ReviewAction } from '../../types';
+import { useAuth } from '../../context/AuthContext';
+import { canReassign, getReassignTargets, canAddCommentary } from '../../config/permissions';
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);
@@ -51,11 +53,17 @@ const stateColorMap: Record<string, 'error' | 'warning' | 'info' | 'success' | '
 
 const HumanReview: React.FC = () => {
   const theme = useTheme();
+  const { role, userName } = useAuth();
+  const showCommentary = canAddCommentary(role);
+  const showReassign = canReassign(role);
+  const reassignTargets = getReassignTargets(role);
   const [sortBy, setSortBy] = useState<'variance' | 'confidence' | 'state'>('variance');
   const [selectedBreak, setSelectedBreak] = useState<BreakRecord | null>(null);
   const [annotationNotes, setAnnotationNotes] = useState('');
   const [resolutionCategory, setResolutionCategory] = useState<BreakCategory | ''>('');
   const [reviewAction, setReviewAction] = useState<ReviewAction | null>(null);
+  const [reassignTeam, setReassignTeam] = useState('');
+  const [reassignReason, setReassignReason] = useState('');
   const [reviewableBreaks, setReviewableBreaks] = useState<BreakRecord[]>([]);
   const [, setLoading] = useState(true);
   const [, setSubmitting] = useState(false);
@@ -89,6 +97,8 @@ const HumanReview: React.FC = () => {
     setReviewAction(action);
     setAnnotationNotes('');
     setResolutionCategory(brk.aiAnalysis?.breakCategory || '');
+    setReassignTeam('');
+    setReassignReason('');
   };
 
   const handleSubmitAnnotation = async () => {
@@ -100,11 +110,15 @@ const HumanReview: React.FC = () => {
         action: reviewAction,
         notes: annotationNotes,
         resolutionCategory: resolutionCategory || undefined,
+        reassignedToTeam: reassignTeam || undefined,
+        reassignReason: reassignReason || undefined,
       });
       setSelectedBreak(null);
       setReviewAction(null);
       setAnnotationNotes('');
       setResolutionCategory('');
+      setReassignTeam('');
+      setReassignReason('');
       // Reload breaks to reflect updated state
       await loadBreaks();
     } catch (err) {
@@ -248,38 +262,46 @@ const HumanReview: React.FC = () => {
 
                 {/* Actions */}
                 <Grid size={{ xs: 12, md: 3 }}>
-                  <Stack spacing={1} sx={{ height: '100%', justifyContent: 'center' }}>
-                    <Button
-                      variant="contained"
-                      color="success"
-                      size="small"
-                      startIcon={<CheckCircleIcon />}
-                      onClick={() => handleOpenAnnotation(brk, 'ACCEPT')}
-                      fullWidth
-                    >
-                      Accept AI Analysis
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      color="info"
-                      size="small"
-                      startIcon={<EditIcon />}
-                      onClick={() => handleOpenAnnotation(brk, 'MODIFY')}
-                      fullWidth
-                    >
-                      Modify Root Cause
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      color="error"
-                      size="small"
-                      startIcon={<ErrorOutlineIcon />}
-                      onClick={() => handleOpenAnnotation(brk, 'REJECT')}
-                      fullWidth
-                    >
-                      Reject & Escalate
-                    </Button>
-                  </Stack>
+                  {showCommentary ? (
+                    <Stack spacing={1} sx={{ height: '100%', justifyContent: 'center' }}>
+                      <Button
+                        variant="contained"
+                        color="success"
+                        size="small"
+                        startIcon={<CheckCircleIcon />}
+                        onClick={() => handleOpenAnnotation(brk, 'ACCEPT')}
+                        fullWidth
+                      >
+                        Accept AI Analysis
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        color="info"
+                        size="small"
+                        startIcon={<EditIcon />}
+                        onClick={() => handleOpenAnnotation(brk, 'MODIFY')}
+                        fullWidth
+                      >
+                        Modify Root Cause
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        color="error"
+                        size="small"
+                        startIcon={<ErrorOutlineIcon />}
+                        onClick={() => handleOpenAnnotation(brk, 'REJECT')}
+                        fullWidth
+                      >
+                        Reject & Escalate
+                      </Button>
+                    </Stack>
+                  ) : (
+                    <Stack spacing={1} sx={{ height: '100%', justifyContent: 'center', alignItems: 'center' }}>
+                      <Typography variant="body2" color="text.secondary">
+                        View only
+                      </Typography>
+                    </Stack>
+                  )}
 
                   {/* Existing annotation */}
                   {brk.humanAnnotation && (
@@ -358,9 +380,39 @@ const HumanReview: React.FC = () => {
                 size="small"
               />
 
+              {/* Reassign to Team */}
+              {showReassign && reassignTargets.length > 0 && (
+                <>
+                  <FormControl fullWidth size="small" sx={{ mt: 2 }}>
+                    <InputLabel>Reassign to Team</InputLabel>
+                    <Select
+                      value={reassignTeam}
+                      label="Reassign to Team"
+                      onChange={(e) => setReassignTeam(e.target.value)}
+                    >
+                      <MenuItem value="">None</MenuItem>
+                      {reassignTargets.map((team) => (
+                        <MenuItem key={team} value={team}>{team}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  {reassignTeam && (
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Reassignment Reason"
+                      placeholder="Why is this being reassigned?"
+                      value={reassignReason}
+                      onChange={(e) => setReassignReason(e.target.value)}
+                      sx={{ mt: 1 }}
+                    />
+                  )}
+                </>
+              )}
+
               <Paper variant="outlined" sx={{ p: 1.5, mt: 2, borderRadius: 1.5, bgcolor: alpha(theme.palette.primary.main, 0.03) }}>
                 <Typography variant="caption" color="text.secondary">
-                  <strong>Audit Signature:</strong> Jane Doe · Conversion Manager · {new Date().toISOString()}
+                  <strong>Audit Signature:</strong> {userName} · {new Date().toISOString()}
                 </Typography>
               </Paper>
             </>

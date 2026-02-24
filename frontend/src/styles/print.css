@@ -1,0 +1,13 @@
+@media print {
+  /* Hide navigation, sidebars */
+  nav, .MuiDrawer-root, .MuiAppBar-root, .notification-bell { display: none !important; }
+  /* Make grid full width */
+  .ag-theme-alpine { height: auto !important; overflow: visible !important; }
+  .ag-body-viewport { height: auto !important; overflow: visible !important; }
+  /* Adjust page margins */
+  @page { margin: 1cm; size: landscape; }
+  /* RAG colors for print */
+  .rag-green { background-color: #E2F0D9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .rag-amber { background-color: #FFF2CC !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .rag-red { background-color: #FCE4EC !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

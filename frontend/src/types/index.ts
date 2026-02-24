@@ -217,7 +217,7 @@ export interface TransactionDetail {
 
 export interface ActivityFeedItem {
   id: string;
-  type: 'VALIDATION_RUN' | 'AI_ANALYSIS' | 'HUMAN_ANNOTATION' | 'STATUS_CHANGE';
+  type: 'VALIDATION_RUN' | 'AI_ANALYSIS' | 'HUMAN_ANNOTATION' | 'STATUS_CHANGE' | 'BREAK_CATEGORIZED' | 'SIGN_OFF' | 'AUTO_ASSIGNMENT';
   message: string;
   eventId: string;
   timestamp: string;
@@ -396,11 +396,18 @@ export interface TrialBalanceCategoryRow {
   valuationDt: string;
   account: string;
   category: string;
+  tbCategory?: string;
+  tbClassification?: string;
+  subClassification?: string;
   incumbentBalance: number;
   bnyBalance: number;
   balanceDiff: number;
   balanceDiffBP: number;
   validationStatus: ValidationStatusType;
+  breakCategory?: string;
+  breakTeam?: string;
+  breakOwner?: string;
+  comment?: string;
 }
 
 // ── Subledger Compare Check ──────────────────────────────────
@@ -431,6 +438,10 @@ export interface PositionCompareRow {
   shareClass: string;
   comparisonFields: ComparisonField[];
   validationStatus: ValidationStatusType;
+  breakCategory?: string;
+  breakTeam?: string;
+  breakOwner?: string;
+  comment?: string;
 }
 
 // ── Tax Lot Row ──────────────────────────────────────────────
@@ -598,3 +609,6 @@ export interface LedgerCategoryDerivation {
 
 // ── GL Account Mapping Types ─────────────────────────────────
 export * from './glMapping';
+
+// ── Break Resolution & Dashboarding Types ────────────────────
+export * from './breakResolution';

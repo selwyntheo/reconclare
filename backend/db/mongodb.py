@@ -109,4 +109,11 @@ COLLECTIONS = {
     "convAssetClassification": "convAssetClassification",
     "convTransClassification": "convTransClassification",
     "convLedgerCategoryDerivation": "convLedgerCategoryDerivation",
+    # Break Resolution & Dashboarding Tables
+    "reviewerAllocations": "reviewerAllocations",
+    "knownDifferences": "knownDifferences",
+    "breakAssignments": "breakAssignments",
+    "notifications": "notifications",
+    "commentary": "commentary",
+    "auditLogs": "auditLogs",
 }

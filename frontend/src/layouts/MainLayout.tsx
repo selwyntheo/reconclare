@@ -15,20 +15,25 @@ import {
   Divider,
   Avatar,
   Tooltip,
-  Badge,
   useTheme,
   alpha,
+  Select,
+  MenuItem,
+  Chip,
 } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import RateReviewIcon from '@mui/icons-material/RateReview';
 import MenuIcon from '@mui/icons-material/Menu';
-import NotificationsIcon from '@mui/icons-material/Notifications';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import CategoryIcon from '@mui/icons-material/Category';
+import { useAuth } from '../context/AuthContext';
+import { AppRole } from '../types/rbac';
+import { ROLE_PERMISSIONS } from '../config/permissions';
+import NotificationBell from '../components/shared/NotificationBell';
 
 const DRAWER_WIDTH = 260;
 const DRAWER_COLLAPSED = 72;
@@ -47,11 +52,17 @@ const navItems: NavItem[] = [
   { label: 'Classification Mapping', icon: <CategoryIcon />, path: '/admin/mappings' },
 ];
 
+const ROLE_OPTIONS: { value: AppRole; label: string }[] = Object.values(ROLE_PERMISSIONS).map((p) => ({
+  value: p.role,
+  label: p.label,
+}));
+
 const MainLayout: React.FC = () => {
   const [drawerOpen, setDrawerOpen] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
+  const { role, initials, userName, setRole } = useAuth();
 
   const currentWidth = drawerOpen ? DRAWER_WIDTH : DRAWER_COLLAPSED;
 
@@ -93,29 +104,68 @@ const MainLayout: React.FC = () => {
 
           <Box sx={{ flexGrow: 1 }} />
 
-          <Tooltip title="Notifications">
-            <IconButton color="inherit" sx={{ mr: 1 }}>
-              <Badge badgeContent={2} color="error">
-                <NotificationsIcon />
-              </Badge>
-            </IconButton>
-          </Tooltip>
+          <NotificationBell />
           <Tooltip title="Settings">
             <IconButton color="inherit" sx={{ mr: 1.5 }}>
               <SettingsIcon />
             </IconButton>
           </Tooltip>
-          <Avatar
+
+          {/* Role Switcher */}
+          <Select
+            value={role}
+            onChange={(e) => setRole(e.target.value as AppRole)}
+            size="small"
+            variant="outlined"
             sx={{
-              width: 32,
+              mr: 1.5,
+              color: 'white',
+              fontSize: '0.8rem',
               height: 32,
-              bgcolor: 'secondary.main',
-              fontSize: '0.85rem',
-              fontWeight: 600,
+              '.MuiOutlinedInput-notchedOutline': {
+                borderColor: alpha(theme.palette.common.white, 0.3),
+              },
+              '&:hover .MuiOutlinedInput-notchedOutline': {
+                borderColor: alpha(theme.palette.common.white, 0.5),
+              },
+              '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                borderColor: alpha(theme.palette.common.white, 0.7),
+              },
+              '.MuiSvgIcon-root': { color: 'white' },
             }}
+            renderValue={(val) => (
+              <Chip
+                label={ROLE_PERMISSIONS[val as AppRole].label}
+                size="small"
+                sx={{
+                  color: 'white',
+                  bgcolor: alpha(theme.palette.common.white, 0.15),
+                  fontSize: '0.75rem',
+                  height: 22,
+                }}
+              />
+            )}
           >
-            JD
-          </Avatar>
+            {ROLE_OPTIONS.map((opt) => (
+              <MenuItem key={opt.value} value={opt.value} sx={{ fontSize: '0.85rem' }}>
+                {opt.label}
+              </MenuItem>
+            ))}
+          </Select>
+
+          <Tooltip title={`${userName} (${ROLE_PERMISSIONS[role].label})`}>
+            <Avatar
+              sx={{
+                width: 32,
+                height: 32,
+                bgcolor: 'secondary.main',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+              }}
+            >
+              {initials}
+            </Avatar>
+          </Tooltip>
         </Toolbar>
       </AppBar>
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Box,
   Paper,
@@ -15,15 +15,18 @@ import {
   CircularProgress,
   Divider,
   Button,
-  ToggleButton,
-  ToggleButtonGroup,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   Tabs,
   Tab,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText,
 } from '@mui/material';
+import LinkIcon from '@mui/icons-material/Link';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
@@ -36,6 +39,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { DrillDownBreadcrumb } from '../../components/shared/DrillDownBreadcrumb';
 import { ValidationStatus } from '../../components/shared/ValidationStatus';
 import { AICommentaryPanel } from '../../components/shared/AICommentaryPanel';
+import CommentaryEditor from '../../components/shared/CommentaryEditor';
 import { useDrillDownState, useDrillDownDispatch } from '../../context/DrillDownContext';
 import {
   fetchPositionCompare,
@@ -43,6 +47,8 @@ import {
   fetchBasisLotCheck,
   fetchEvent,
   fetchAIAnalysis,
+  fetchCommentary,
+  fetchKnownDifferences,
 } from '../../services/api';
 import {
   PositionCompareRow,
@@ -54,6 +60,13 @@ import {
 } from '../../types';
 import { exportToCsv } from '../../utils/exportToExcel';
 import PositionValidationView from '../../components/validation/PositionValidationView';
+import { useAuth } from '../../context/AuthContext';
+import { PositionSubView } from '../../types/rbac';
+import { getPositionSubViews } from '../../config/permissions';
+import BreakCategorySelector from '../../components/shared/BreakCategorySelector';
+import BreakTeamDropdown from '../../components/shared/BreakTeamDropdown';
+import { updateBreakCategory, updateBreakTeam } from '../../services/api';
+import { useWebSocket } from '../../hooks/useWebSocket';
 
 const formatCurrency = (v: number | null | undefined) => {
   if (v == null) return '';
@@ -62,11 +75,40 @@ const formatCurrency = (v: number | null | undefined) => {
     : v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
-type ViewMode = 'positions' | 'basis-lot';
+const SUB_VIEW_LABELS: Record<PositionSubView, string> = {
+  'full-portfolio': 'Full Portfolio',
+  'share-breaks': 'Share Breaks',
+  'price-breaks': 'Price Breaks',
+  'cost-breaks': 'Cost Breaks',
+  'tax-lots': 'Tax Lots',
+  'equity-dividends': 'Equity Dividends',
+  'fixed-income': 'Fixed Income',
+  'expenses': 'Expenses',
+  'derivative-income': 'Derivative Income',
+  'forwards': 'Forwards',
+  'futures': 'Futures',
+  'swaps': 'Swaps',
+};
+
+const SUB_VIEW_DESCRIPTIONS: Record<PositionSubView, string> = {
+  'full-portfolio': 'All positions',
+  'share-breaks': 'Positions filtered to share quantity variances',
+  'price-breaks': 'Positions filtered to market price variances',
+  'cost-breaks': 'Positions filtered to book value/cost variances',
+  'tax-lots': 'Basis lot reconciliation',
+  'equity-dividends': 'Unsettled dividend transactions for equity',
+  'fixed-income': 'Interest accrual comparisons for fixed income',
+  'expenses': 'Expense RecPay unsettled transactions',
+  'derivative-income': 'Income accruals on derivatives',
+  'forwards': 'Forward contract positions',
+  'futures': 'Futures with variation margin',
+  'swaps': 'Swap positions',
+};
 
 const PositionDrillDown: React.FC = () => {
   const { eventId, account } = useParams<{ eventId: string; account: string }>();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const state = useDrillDownState();
   const dispatch = useDrillDownDispatch();
   const valuationDt = searchParams.get('valuationDt') || state.context.valuationDt || '';
@@ -79,10 +121,46 @@ const PositionDrillDown: React.FC = () => {
   const [taxLots, setTaxLots] = useState<Record<string, TaxLotRow[]>>({});
   const [aiAnalysis, setAiAnalysis] = useState<AICommentaryData | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>('positions');
+  const { role, permissions } = useAuth();
+  const allowedSubViews = getPositionSubViews(role);
+  const [viewMode, setViewMode] = useState<PositionSubView>(permissions.defaultPositionSubView);
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [securityDetailOpen, setSecurityDetailOpen] = useState(false);
   const [selectedPosition, setSelectedPosition] = useState<PositionCompareRow | null>(null);
+
+  // Task 10.6: KD reference linking dialog state
+  const [kdDialogOpen, setKdDialogOpen] = useState(false);
+  const [kdDialogAssetId, setKdDialogAssetId] = useState<string | null>(null);
+
+  // Task 19.5: Commentary state
+  const [commentaryEntries, setCommentaryEntries] = useState<{ breakCategory: '' | any; amount: string; text: string; kdReference: string }[]>([]);
+  const [kdOptions, setKdOptions] = useState<{ reference: string; description: string }[]>([]);
+  const isPositionReadOnly = permissions.screens.positionDrillDown.readOnly;
+
+  // Load commentary and KD options
+  useEffect(() => {
+    if (eventId && account) {
+      fetchCommentary(eventId, account)
+        .then((comments: any[]) => {
+          // Filter to position-level commentary
+          const posComments = comments.filter((c: any) => c.reconciliationLevel === 'L2_POSITION');
+          setCommentaryEntries(
+            posComments.map((c: any) => ({
+              breakCategory: c.breakCategory || '',
+              amount: String(c.amount || ''),
+              text: c.text || '',
+              kdReference: c.kdReference || '',
+            }))
+          );
+        })
+        .catch(() => setCommentaryEntries([]));
+      fetchKnownDifferences(eventId, true)
+        .then((kds: any[]) =>
+          setKdOptions(kds.map((kd: any) => ({ reference: kd.reference, description: kd.summary || kd.description || kd.reference })))
+        )
+        .catch(() => setKdOptions([]));
+    }
+  }, [eventId, account]);
 
   // Set context if not already set
   useEffect(() => {
@@ -94,19 +172,25 @@ const PositionDrillDown: React.FC = () => {
   }, [eventId, state.context.eventId, dispatch]);
 
   // Load position compare data
-  useEffect(() => {
-    if (account && valuationDt && category) {
-      setLoading(true);
-      fetchPositionCompare(account, valuationDt, category)
-        .then(setPositions)
-        .catch(() => setPositions([]))
-        .finally(() => setLoading(false));
-    }
-  }, [account, valuationDt, category]);
+  // Task 10.4: When viewMode is 'full-portfolio', load positions without category filter
+  const loadPositions = useCallback(() => {
+    if (!account || !valuationDt) return;
+    const effectiveCategory = viewMode === 'full-portfolio' ? '' : category;
+    if (!effectiveCategory && viewMode !== 'full-portfolio') return;
+    setLoading(true);
+    fetchPositionCompare(account, valuationDt, effectiveCategory)
+      .then(setPositions)
+      .catch(() => setPositions([]))
+      .finally(() => setLoading(false));
+  }, [account, valuationDt, category, viewMode]);
 
-  // Load basis lot data when in basis-lot view
   useEffect(() => {
-    if (viewMode === 'basis-lot' && account && valuationDt) {
+    loadPositions();
+  }, [loadPositions]);
+
+  // Load basis lot data when in tax-lots view
+  useEffect(() => {
+    if (viewMode === 'tax-lots' && account && valuationDt) {
       setLoading(true);
       fetchBasisLotCheck(account, valuationDt)
         .then(setBasisLots)
@@ -135,6 +219,29 @@ const PositionDrillDown: React.FC = () => {
     }, 0);
     return { totalVariance };
   }, [positions]);
+
+  // Filter positions based on sub-view
+  const filteredPositions = useMemo(() => {
+    if (viewMode === 'full-portfolio') return positions;
+    if (viewMode === 'share-breaks') {
+      return positions.filter((p) =>
+        p.comparisonFields.some((f) => f.fieldName.toLowerCase().includes('share') && f.variance !== 0)
+      );
+    }
+    if (viewMode === 'price-breaks') {
+      return positions.filter((p) =>
+        p.comparisonFields.some((f) => f.fieldName.toLowerCase().includes('market') && f.variance !== 0)
+      );
+    }
+    if (viewMode === 'cost-breaks') {
+      return positions.filter((p) =>
+        p.comparisonFields.some((f) =>
+          (f.fieldName.toLowerCase().includes('cost') || f.fieldName.toLowerCase().includes('book')) && f.variance !== 0
+        )
+      );
+    }
+    return positions;
+  }, [positions, viewMode]);
 
   const categoryVariance = state.trialBalance.navVariance;
   const rollUpTieOut = positionRollUp && categoryVariance !== null
@@ -172,6 +279,90 @@ const PositionDrillDown: React.FC = () => {
         .finally(() => setAiLoading(false));
     }
   };
+
+  // Task 10.3: Break Category / Break Team handlers with optimistic UI
+  const handleBreakCategoryChange = useCallback(
+    async (assetId: string, newCategory: string) => {
+      if (!eventId) return;
+      // Optimistic update
+      setPositions((prev) =>
+        prev.map((p) =>
+          p.assetId === assetId ? { ...p, breakCategory: newCategory } : p
+        )
+      );
+      try {
+        await updateBreakCategory(assetId, {
+          eventId,
+          breakCategory: newCategory,
+          changedBy: role,
+        });
+      } catch {
+        // Revert on failure - reload positions
+        loadPositions();
+      }
+    },
+    [eventId, role, loadPositions]
+  );
+
+  const handleBreakTeamChange = useCallback(
+    async (assetId: string, newTeam: string) => {
+      if (!eventId) return;
+      // Optimistic update
+      setPositions((prev) =>
+        prev.map((p) =>
+          p.assetId === assetId ? { ...p, breakTeam: newTeam } : p
+        )
+      );
+      try {
+        await updateBreakTeam(assetId, {
+          eventId,
+          assignedTeam: newTeam,
+          changedBy: role,
+        });
+      } catch {
+        // Revert on failure - reload positions
+        loadPositions();
+      }
+    },
+    [eventId, role, loadPositions]
+  );
+
+  // Task 10.6: KD reference linking handler
+  const handleApplyKD = useCallback(
+    (assetId: string) => {
+      setKdDialogAssetId(assetId);
+      setKdDialogOpen(true);
+    },
+    []
+  );
+
+  const handleKdSelect = useCallback(
+    (kdReference: string) => {
+      if (!kdDialogAssetId) return;
+      // Update the position comment with KD reference
+      setPositions((prev) =>
+        prev.map((p) =>
+          p.assetId === kdDialogAssetId
+            ? { ...p, comment: `${p.comment ? p.comment + ' ' : ''}[KD: ${kdReference}]` }
+            : p
+        )
+      );
+      setKdDialogOpen(false);
+      setKdDialogAssetId(null);
+    },
+    [kdDialogAssetId]
+  );
+
+  // Task 10.7: WebSocket BREAK_UPDATED listener
+  useWebSocket({
+    eventId: eventId || '',
+    enabled: !!eventId,
+    onMessage: (msg) => {
+      if (msg.type === 'BREAK_UPDATED') {
+        loadPositions();
+      }
+    },
+  });
 
   const defaultColDef = useMemo(() => ({ sortable: true, filter: true, resizable: true }), []);
 
@@ -249,7 +440,73 @@ const PositionDrillDown: React.FC = () => {
       width: 100,
       cellRenderer: (params: any) => <ValidationStatus status={params.value} />,
     },
-  ], [comparisonColumnDefs, expandedRows, handleExpandRow]);
+    {
+      headerName: 'Break Category',
+      field: 'breakCategory',
+      width: 160,
+      cellRenderer: (params: any) => {
+        if (!params.data) return null;
+        return (
+          <BreakCategorySelector
+            value={params.data.breakCategory || ''}
+            onChange={(newVal: string) => handleBreakCategoryChange(params.data.assetId, newVal)}
+            disabled={isPositionReadOnly}
+            size="small"
+          />
+        );
+      },
+      sortable: false,
+    },
+    {
+      headerName: 'Break Team',
+      field: 'breakTeam',
+      width: 160,
+      cellRenderer: (params: any) => {
+        if (!params.data) return null;
+        return (
+          <BreakTeamDropdown
+            team={params.data.breakTeam || ''}
+            owner={params.data.breakOwner || ''}
+            onTeamChange={(newVal: string) => handleBreakTeamChange(params.data.assetId, newVal)}
+            onOwnerChange={() => {}}
+            disabled={isPositionReadOnly}
+            size="small"
+          />
+        );
+      },
+      sortable: false,
+    },
+    {
+      headerName: 'Break Owner',
+      field: 'breakOwner',
+      width: 130,
+    },
+    {
+      headerName: 'Comment',
+      field: 'comment',
+      width: 250,
+      cellRenderer: (params: any) => {
+        if (!params.data) return null;
+        return (
+          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ height: '100%' }}>
+            <Typography variant="body2" sx={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {params.value || ''}
+            </Typography>
+            {!isPositionReadOnly && (
+              <IconButton
+                size="small"
+                title="Link KD Reference"
+                onClick={(e) => { e.stopPropagation(); handleApplyKD(params.data.assetId); }}
+              >
+                <LinkIcon fontSize="small" />
+              </IconButton>
+            )}
+          </Stack>
+        );
+      },
+      sortable: false,
+    },
+  ], [comparisonColumnDefs, expandedRows, handleExpandRow, handleBreakCategoryChange, handleBreakTeamChange, handleApplyKD, isPositionReadOnly]);
 
   const basisLotColumnDefs: ColDef<BasisLotRow>[] = useMemo(() => [
     { field: 'assetId', headerName: 'Asset ID', width: 120 },
@@ -342,38 +599,81 @@ const PositionDrillDown: React.FC = () => {
 
         {state.tabs.positionDrillDown === 'reconciliation' ? (
           <>
-            {/* View Toggle */}
-            <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-              <ToggleButtonGroup
+            {/* Sub-View Tabs */}
+            <Paper sx={{ mb: 1 }} elevation={0}>
+              <Tabs
                 value={viewMode}
-                exclusive
-                onChange={(_, v) => v && setViewMode(v)}
-                size="small"
+                onChange={(_, v: PositionSubView) => setViewMode(v)}
+                variant="scrollable"
+                scrollButtons="auto"
+                sx={{ minHeight: 36, '& .MuiTab-root': { minHeight: 36, py: 0.5, textTransform: 'none', fontSize: '0.8rem' } }}
               >
-                <ToggleButton value="positions">Position Compare</ToggleButton>
-                <ToggleButton value="basis-lot">Basis Lot Check</ToggleButton>
-              </ToggleButtonGroup>
-              <Button
-                size="small"
-                startIcon={<AutoFixHighIcon />}
-                variant="outlined"
-                onClick={handleRequestAnalysis}
-                disabled={aiLoading || !selectedAssetId}
-              >
-                Request Analysis
+                {allowedSubViews.map((sv) => (
+                  <Tab key={sv} label={SUB_VIEW_LABELS[sv]} value={sv} />
+                ))}
+              </Tabs>
+            </Paper>
+
+            <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+              <Button size="small" variant="outlined" onClick={() => navigate(`/events/${eventId}/funds/${account}/positions/share-breaks?valuationDt=${valuationDt}`)}>
+                Share Breaks
+              </Button>
+              <Button size="small" variant="outlined" onClick={() => navigate(`/events/${eventId}/funds/${account}/positions/price-breaks?valuationDt=${valuationDt}`)}>
+                Price Breaks
+              </Button>
+              <Button size="small" variant="outlined" onClick={() => navigate(`/events/${eventId}/funds/${account}/positions/tax-lots?valuationDt=${valuationDt}`)}>
+                Tax Lots
+              </Button>
+              <Button size="small" variant="outlined" onClick={() => navigate(`/events/${eventId}/funds/${account}/income/dividends?valuationDt=${valuationDt}`)}>
+                Dividends
+              </Button>
+              <Button size="small" variant="outlined" onClick={() => navigate(`/events/${eventId}/funds/${account}/income/fixed-income?valuationDt=${valuationDt}`)}>
+                Fixed Income
+              </Button>
+              <Button size="small" variant="outlined" onClick={() => navigate(`/events/${eventId}/funds/${account}/derivatives/forwards?valuationDt=${valuationDt}`)}>
+                Forwards
+              </Button>
+              <Button size="small" variant="outlined" onClick={() => navigate(`/events/${eventId}/funds/${account}/derivatives/futures?valuationDt=${valuationDt}`)}>
+                Futures
               </Button>
             </Stack>
 
-            {/* Position Compare Grid or Basis Lot Grid */}
+            {!permissions.screens.positionDrillDown.readOnly && (
+              <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
+                <Button
+                  size="small"
+                  startIcon={<AutoFixHighIcon />}
+                  variant="outlined"
+                  onClick={handleRequestAnalysis}
+                  disabled={aiLoading || !selectedAssetId}
+                >
+                  Request Analysis
+                </Button>
+              </Stack>
+            )}
+
+            {/* Position Compare Grid, Basis Lot Grid, or Coming Soon */}
             <Box sx={{ flex: 1, minHeight: 300 }} role="region" aria-label="Position data grid">
               {loading ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress aria-label="Loading position data" /></Box>
-              ) : viewMode === 'positions' ? (
+              ) : viewMode === 'tax-lots' ? (
+                <Box className="ag-theme-alpine" sx={{ height: '100%', width: '100%', '& .ag-cell:focus-within': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 } }}>
+                  <AgGridReact<BasisLotRow>
+                    modules={[AllCommunityModule]}
+                    theme="legacy"
+                    rowData={basisLots}
+                    columnDefs={basisLotColumnDefs}
+                    defaultColDef={defaultColDef}
+                    animateRows
+                    getRowId={(params) => params.data.assetId}
+                  />
+                </Box>
+              ) : viewMode === 'full-portfolio' || viewMode === 'share-breaks' || viewMode === 'price-breaks' || viewMode === 'cost-breaks' ? (
                 <Box className="ag-theme-alpine" sx={{ height: '100%', width: '100%', '& .ag-cell:focus-within': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 } }}>
                   <AgGridReact<PositionCompareRow>
                     modules={[AllCommunityModule]}
                     theme="legacy"
-                    rowData={positions}
+                    rowData={filteredPositions}
                     columnDefs={columnDefs}
                     defaultColDef={defaultColDef}
                     animateRows
@@ -387,21 +687,22 @@ const PositionDrillDown: React.FC = () => {
                   />
                 </Box>
               ) : (
-                <Box className="ag-theme-alpine" sx={{ height: '100%', width: '100%', '& .ag-cell:focus-within': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 } }}>
-                  <AgGridReact<BasisLotRow>
-                    modules={[AllCommunityModule]}
-                    theme="legacy"
-                    rowData={basisLots}
-                    columnDefs={basisLotColumnDefs}
-                    defaultColDef={defaultColDef}
-                    animateRows
-                    getRowId={(params) => params.data.assetId}
-                  />
-                </Box>
+                /* Coming Soon placeholder for category-specific sub-views */
+                <Paper sx={{ p: 4, textAlign: 'center', bgcolor: 'background.default' }} elevation={0}>
+                  <Typography variant="h6" color="text.secondary" gutterBottom>
+                    {SUB_VIEW_LABELS[viewMode]}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {SUB_VIEW_DESCRIPTIONS[viewMode]}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
+                    Coming Soon — This sub-view will filter positions by security type or category.
+                  </Typography>
+                </Paper>
               )}
 
               {/* Expanded tax lot detail rows */}
-              {viewMode === 'positions' && positions.filter((p) => expandedRows.has(p.assetId)).map((pos) => {
+              {(viewMode === 'full-portfolio' || viewMode === 'share-breaks' || viewMode === 'price-breaks' || viewMode === 'cost-breaks') && positions.filter((p) => expandedRows.has(p.assetId)).map((pos) => {
                 const lots = taxLots[pos.assetId];
                 return (
                   <Collapse key={pos.assetId} in>
@@ -549,13 +850,24 @@ const PositionDrillDown: React.FC = () => {
         </Paper>
       </Box>
 
-      {/* AI Commentary Panel */}
-      <AICommentaryPanel
-        analysis={aiAnalysis}
-        loading={aiLoading}
-        level="position"
-        onRequestAnalysis={handleRequestAnalysis}
-      />
+      {/* Task 19.5: Position-Level Commentary Editor + AI Commentary Panel */}
+      <Box sx={{ width: 340, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
+        <Paper sx={{ p: 2, mb: 1 }} elevation={1}>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>Position Commentary</Typography>
+          <CommentaryEditor
+            entries={commentaryEntries}
+            onChange={setCommentaryEntries}
+            kdOptions={kdOptions}
+            disabled={isPositionReadOnly}
+          />
+        </Paper>
+        <AICommentaryPanel
+          analysis={aiAnalysis}
+          loading={aiLoading}
+          level="position"
+          onRequestAnalysis={handleRequestAnalysis}
+        />
+      </Box>
 
       {/* Security Reference Detail Modal */}
       <Dialog open={securityDetailOpen} onClose={() => setSecurityDetailOpen(false)} maxWidth="sm" fullWidth>
@@ -620,6 +932,35 @@ const PositionDrillDown: React.FC = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setSecurityDetailOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Task 10.6: KD Reference Linking Dialog */}
+      <Dialog open={kdDialogOpen} onClose={() => setKdDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Link Known Difference</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Select a Known Difference to link to this position comment:
+          </Typography>
+          {kdOptions.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">No active KDs available.</Typography>
+          ) : (
+            <List dense>
+              {kdOptions.map((kd) => (
+                <ListItem key={kd.reference} disablePadding>
+                  <ListItemButton onClick={() => handleKdSelect(kd.reference)}>
+                    <ListItemText
+                      primary={kd.reference}
+                      secondary={kd.description}
+                    />
+                  </ListItemButton>
+                </ListItem>
+              ))}
+            </List>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setKdDialogOpen(false)}>Cancel</Button>
         </DialogActions>
       </Dialog>
     </Box>

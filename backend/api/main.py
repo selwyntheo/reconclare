@@ -21,7 +21,7 @@ from typing import Optional
 import asyncio
 import json
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
@@ -37,6 +37,8 @@ from db.schemas import (
 from services.validation_engine import ValidationEngine, VALIDATION_CHECKS
 from services.ai_analysis import AIAnalysisService
 from services.derived_subledger import DerivedSubledgerService
+from api.routers import all_routers
+from api.websocket import manager as ws_manager
 
 
 @asynccontextmanager
@@ -51,6 +53,43 @@ async def lifespan(app: FastAPI):
     )
     await db[COLLECTIONS["dataSubLedgerPosition"]].create_index(
         [("valuationDt", 1), ("account", 1), ("userBank", 1)], background=True
+    )
+    # Break Resolution & Dashboarding indexes
+    await db[COLLECTIONS["reviewerAllocations"]].create_index(
+        [("eventId", 1), ("valuationDate", 1)], background=True
+    )
+    await db[COLLECTIONS["reviewerAllocations"]].create_index(
+        [("assignedReviewerId", 1)], background=True
+    )
+    await db[COLLECTIONS["knownDifferences"]].create_index(
+        [("eventId", 1), ("isActive", 1)], background=True
+    )
+    await db[COLLECTIONS["knownDifferences"]].create_index(
+        [("eventId", 1), ("reference", 1)], unique=True, background=True
+    )
+    await db[COLLECTIONS["breakAssignments"]].create_index(
+        [("eventId", 1), ("valuationDate", 1), ("entityReference", 1)], background=True
+    )
+    await db[COLLECTIONS["breakAssignments"]].create_index(
+        [("assignedTeam", 1)], background=True
+    )
+    await db[COLLECTIONS["notifications"]].create_index(
+        [("assignedOwner", 1), ("isRead", 1)], background=True
+    )
+    await db[COLLECTIONS["notifications"]].create_index(
+        "createdAt", expireAfterSeconds=90 * 24 * 3600, background=True
+    )
+    await db[COLLECTIONS["commentary"]].create_index(
+        [("reconciliationLevel", 1), ("entityReference", 1)], background=True
+    )
+    await db[COLLECTIONS["commentary"]].create_index(
+        [("parentCommentId", 1)], background=True
+    )
+    await db[COLLECTIONS["auditLogs"]].create_index(
+        [("eventId", 1), ("action", 1), ("timestamp", -1)], background=True
+    )
+    await db[COLLECTIONS["auditLogs"]].create_index(
+        "timestamp", expireAfterSeconds=365 * 24 * 3600, background=True
     )
     yield
     # Shutdown
@@ -70,6 +109,25 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include break resolution routers
+for router in all_routers:
+    app.include_router(router)
+
+
+# ══════════════════════════════════════════════════════════════
+# WebSocket
+# ══════════════════════════════════════════════════════════════
+
+@app.websocket("/ws/events/{event_id}")
+async def websocket_endpoint(websocket: WebSocket, event_id: str):
+    await ws_manager.connect(event_id, websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            # Echo or handle client messages if needed
+    except WebSocketDisconnect:
+        ws_manager.disconnect(event_id, websocket)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -253,7 +311,11 @@ async def get_break(break_id: str):
 # ══════════════════════════════════════════════════════════════
 
 @app.post("/api/breaks/{break_id}/annotate")
-async def annotate_break(break_id: str, req: AnnotationRequest):
+async def annotate_break(
+    break_id: str,
+    req: AnnotationRequest,
+    x_user_role: Optional[str] = Header(None),
+):
     """Submit a human annotation for a break."""
     db = get_async_db()
     brk = await db[COLLECTIONS["breakRecords"]].find_one({"breakId": break_id})
@@ -272,33 +334,51 @@ async def annotate_break(break_id: str, req: AnnotationRequest):
         "annotationId": f"ANN-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
         "reviewerUserId": req.reviewerUserId,
         "reviewerName": req.reviewerName,
-        "reviewerRole": req.reviewerRole,
+        "reviewerRole": x_user_role or req.reviewerRole,
         "action": req.action.value,
         "notes": req.notes,
         "resolutionCategory": req.resolutionCategory,
         "timestamp": datetime.utcnow().isoformat(),
     }
 
+    # Include reassignment info if provided
+    if req.reassignedToTeam:
+        annotation["reassignedToTeam"] = req.reassignedToTeam
+        annotation["reassignReason"] = req.reassignReason or ""
+
+    update_fields = {
+        "state": new_state,
+        "humanAnnotation": annotation,
+    }
+
     await db[COLLECTIONS["breakRecords"]].update_one(
         {"breakId": break_id},
-        {
-            "$set": {
-                "state": new_state,
-                "humanAnnotation": annotation,
-            }
-        },
+        {"$set": update_fields},
     )
 
     # Log activity
+    activity_message = f"{req.reviewerName} {req.action.value.lower()}ed break {break_id}: {req.notes[:100]}"
     await db[COLLECTIONS["activityFeed"]].insert_one({
         "id": f"act-{break_id[-8:]}",
         "type": "HUMAN_ANNOTATION",
-        "message": f"{req.reviewerName} {req.action.value.lower()}ed break {break_id}: {req.notes[:100]}",
+        "message": activity_message,
         "eventId": None,
         "timestamp": datetime.utcnow().isoformat(),
         "userId": req.reviewerUserId,
         "userName": req.reviewerName,
     })
+
+    # Log reassignment activity separately
+    if req.reassignedToTeam:
+        await db[COLLECTIONS["activityFeed"]].insert_one({
+            "id": f"act-reassign-{break_id[-8:]}",
+            "type": "STATUS_CHANGE",
+            "message": f"Break {break_id} reassigned to {req.reassignedToTeam} by {req.reviewerName}: {req.reassignReason or 'No reason provided'}",
+            "eventId": None,
+            "timestamp": datetime.utcnow().isoformat(),
+            "userId": req.reviewerUserId,
+            "userName": req.reviewerName,
+        })
 
     return {"status": "annotated", "breakId": break_id, "newState": new_state}
 

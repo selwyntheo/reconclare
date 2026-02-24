@@ -30,15 +30,20 @@ import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { DrillDownBreadcrumb } from '../../components/shared/DrillDownBreadcrumb';
 import { ValidationStatus } from '../../components/shared/ValidationStatus';
 import { AICommentaryPanel } from '../../components/shared/AICommentaryPanel';
+import CommentaryEditor from '../../components/shared/CommentaryEditor';
+import BreakCategorySelector from '../../components/shared/BreakCategorySelector';
 import { useDrillDownState, useDrillDownDispatch } from '../../context/DrillDownContext';
 import {
   fetchTrialBalanceCompare,
   fetchEvent,
   fetchAIAnalysis,
+  fetchCommentary,
+  fetchKnownDifferences,
 } from '../../services/api';
 import { TrialBalanceCategoryRow, AICommentaryData, DrillDownTab } from '../../types';
 import { exportToCsv } from '../../utils/exportToExcel';
 import TrialBalanceValidationView from '../../components/validation/TrialBalanceValidationView';
+import { useAuth } from '../../context/AuthContext';
 
 const formatCurrency = (v: number | null | undefined) => {
   if (v == null) return '';
@@ -53,6 +58,8 @@ const TrialBalance: React.FC = () => {
   const navigate = useNavigate();
   const state = useDrillDownState();
   const dispatch = useDrillDownDispatch();
+  const { permissions } = useAuth();
+  const isReadOnly = permissions.screens.trialBalance.readOnly;
   const valuationDt = searchParams.get('valuationDt') || state.context.valuationDt || '';
 
   const [categories, setCategories] = useState<TrialBalanceCategoryRow[]>([]);
@@ -60,6 +67,33 @@ const TrialBalance: React.FC = () => {
   const [aiAnalysis, setAiAnalysis] = useState<AICommentaryData | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [, setHighlightedCategory] = useState<string | null>(null);
+
+  // Task 19.5: Commentary state
+  const [commentaryEntries, setCommentaryEntries] = useState<{ breakCategory: '' | any; amount: string; text: string; kdReference: string }[]>([]);
+  const [kdOptions, setKdOptions] = useState<{ reference: string; description: string }[]>([]);
+
+  // Load commentary and KD options
+  useEffect(() => {
+    if (eventId && account) {
+      fetchCommentary(eventId, account)
+        .then((comments: any[]) => {
+          setCommentaryEntries(
+            comments.map((c: any) => ({
+              breakCategory: c.breakCategory || '',
+              amount: String(c.amount || ''),
+              text: c.text || '',
+              kdReference: c.kdReference || '',
+            }))
+          );
+        })
+        .catch(() => setCommentaryEntries([]));
+      fetchKnownDifferences(eventId, true)
+        .then((kds: any[]) =>
+          setKdOptions(kds.map((kd: any) => ({ reference: kd.reference, description: kd.summary || kd.description || kd.reference })))
+        )
+        .catch(() => setKdOptions([]));
+    }
+  }, [eventId, account]);
 
   // Set context if not already set
   useEffect(() => {
@@ -100,6 +134,32 @@ const TrialBalance: React.FC = () => {
     return { incumbentTotal, bnyTotal, varianceTotal };
   }, [categories]);
 
+  // Compute BS/P&L cross-check summary
+  const crossCheckSummary = useMemo(() => {
+    const bsRows = categories.filter((c) =>
+      (c as any).tbCategory === 'BS' || (c as any).tbCategory === 'Balance Sheet'
+    );
+    const plRows = categories.filter((c) =>
+      (c as any).tbCategory === 'PL' || (c as any).tbCategory === 'P&L'
+    );
+    // Fallback: if no tbCategory data, use balance sign heuristic
+    const hasTbCategory = bsRows.length > 0 || plRows.length > 0;
+    const effectiveBsRows = hasTbCategory
+      ? bsRows
+      : categories.filter((c) => c.incumbentBalance >= 0);
+    const effectivePlRows = hasTbCategory
+      ? plRows
+      : categories.filter((c) => c.incumbentBalance < 0);
+
+    const bnyBsTotal = effectiveBsRows.reduce((sum, c) => sum + c.bnyBalance, 0);
+    const incBsTotal = effectiveBsRows.reduce((sum, c) => sum + c.incumbentBalance, 0);
+    const bnyPlTotal = effectivePlRows.reduce((sum, c) => sum + c.bnyBalance, 0);
+    const incPlTotal = effectivePlRows.reduce((sum, c) => sum + c.incumbentBalance, 0);
+    const netDiff = (bnyBsTotal + bnyPlTotal) - (incBsTotal + incPlTotal);
+    const netPass = Math.abs(netDiff) < 0.01;
+    return { bnyBsTotal, incBsTotal, bnyPlTotal, incPlTotal, netDiff, netPass };
+  }, [categories]);
+
   const navVariance = state.trialBalance.navVariance;
   const tieOutDiff = navVariance !== null ? totals.varianceTotal - navVariance : null;
   const tieOutPass = tieOutDiff !== null && Math.abs(tieOutDiff) < 0.01;
@@ -135,6 +195,9 @@ const TrialBalance: React.FC = () => {
 
   const columnDefs: ColDef<TrialBalanceCategoryRow>[] = [
     { field: 'category', headerName: 'Category', flex: 1, minWidth: 180 },
+    { field: 'tbCategory', headerName: 'BS/P&L', width: 90 },
+    { field: 'tbClassification', headerName: 'Classification', width: 120 },
+    { field: 'subClassification', headerName: 'Sub Classification', width: 150 },
     {
       field: 'incumbentBalance',
       headerName: 'Incumbent Balance',
@@ -169,6 +232,31 @@ const TrialBalance: React.FC = () => {
       headerName: 'Validation',
       width: 100,
       cellRenderer: (params: any) => <ValidationStatus status={params.value} />,
+    },
+    {
+      headerName: 'Break Category',
+      field: 'breakCategory',
+      width: 160,
+      cellRenderer: (params: any) => {
+        if (!params.data || !params.data.breakCategory) return null;
+        return <BreakCategorySelector value={params.data.breakCategory} onChange={() => {}} disabled={isReadOnly} size="small" />;
+      },
+    },
+    {
+      headerName: 'Break Team',
+      field: 'breakTeam',
+      width: 130,
+    },
+    {
+      headerName: 'Break Owner',
+      field: 'breakOwner',
+      width: 130,
+    },
+    {
+      headerName: 'Comment',
+      field: 'comment',
+      width: 200,
+      editable: !isReadOnly,
     },
   ];
 
@@ -276,6 +364,19 @@ const TrialBalance: React.FC = () => {
           </Box>
         )}
 
+        {/* Task 19.5: Commentary Editor */}
+        {state.tabs.trialBalance === 'reconciliation' && (
+          <Paper sx={{ p: 2, mt: 1 }} elevation={1}>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>Commentary</Typography>
+            <CommentaryEditor
+              entries={commentaryEntries}
+              onChange={setCommentaryEntries}
+              kdOptions={kdOptions}
+              disabled={isReadOnly}
+            />
+          </Paper>
+        )}
+
         {/* Reconciliation Roll-Up Summary */}
         <Paper sx={{ p: 2, mt: 1 }} elevation={1}>
           <Stack direction="row" spacing={4} alignItems="center">
@@ -325,6 +426,44 @@ const TrialBalance: React.FC = () => {
           </Stack>
         </Paper>
       </Box>
+
+      {/* BS/P&L Cross-Check Sidebar */}
+      <Paper
+        sx={{ width: 240, ml: 2, p: 2, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2 }}
+        elevation={1}
+        role="complementary"
+        aria-label="BS/P&L Cross-Check"
+      >
+        <Typography variant="subtitle2" fontWeight={700}>BS / P&L Cross-Check</Typography>
+        <Divider />
+        <Box>
+          <Typography variant="caption" color="text.secondary">Balance Sheet</Typography>
+          <Stack spacing={0.5} sx={{ mt: 0.5 }}>
+            <Typography variant="body2">BNY: ${formatCurrency(crossCheckSummary.bnyBsTotal)}</Typography>
+            <Typography variant="body2">Inc: ${formatCurrency(crossCheckSummary.incBsTotal)}</Typography>
+          </Stack>
+        </Box>
+        <Divider />
+        <Box>
+          <Typography variant="caption" color="text.secondary">P&L</Typography>
+          <Stack spacing={0.5} sx={{ mt: 0.5 }}>
+            <Typography variant="body2">BNY: ${formatCurrency(crossCheckSummary.bnyPlTotal)}</Typography>
+            <Typography variant="body2">Inc: ${formatCurrency(crossCheckSummary.incPlTotal)}</Typography>
+          </Stack>
+        </Box>
+        <Divider />
+        <Box>
+          <Typography variant="caption" color="text.secondary">Net Cross-Check</Typography>
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
+            <ValidationStatus status={crossCheckSummary.netPass ? 'pass' : 'break'} showLabel />
+          </Stack>
+          {!crossCheckSummary.netPass && (
+            <Typography variant="caption" color="error.main">
+              Diff: ${formatCurrency(crossCheckSummary.netDiff)}
+            </Typography>
+          )}
+        </Box>
+      </Paper>
 
       {/* AI Commentary Panel */}
       <AICommentaryPanel analysis={aiAnalysis} loading={aiLoading} level="trial-balance" />

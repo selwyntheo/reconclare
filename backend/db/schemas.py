@@ -397,6 +397,8 @@ class AnnotationRequest(BaseModel):
     reviewerUserId: str = "u1"
     reviewerName: str = "Jane Doe"
     reviewerRole: str = "CONVERSION_MANAGER"
+    reassignedToTeam: Optional[str] = None
+    reassignReason: Optional[str] = None
 
 
 # ══════════════════════════════════════════════════════════════
@@ -482,3 +484,143 @@ class BulkMappingRequest(BaseModel):
 class BulkDeleteRequest(BaseModel):
     """Request for bulk delete operations"""
     mappingIds: list[str]
+
+
+# ══════════════════════════════════════════════════════════════
+# Break Resolution & Dashboarding Schemas
+# ══════════════════════════════════════════════════════════════
+
+class ResolutionBreakCategory(str, Enum):
+    KNOWN_DIFFERENCE = "Known Difference"
+    BNY_TO_RESOLVE = "BNY to Resolve"
+    INCUMBENT_TO_RESOLVE = "Incumbent to Resolve"
+    UNDER_INVESTIGATION = "Under Investigation"
+    MATCH = "Match"
+
+
+class ReviewStatus(str, Enum):
+    NOT_STARTED = "Not Started"
+    IN_PROGRESS = "In Progress"
+    COMPLETE = "Complete"
+
+
+class KnownDifferenceType(str, Enum):
+    METHODOLOGY = "Methodology"
+    PROCESSING = "Processing"
+
+
+class BreakTeam(str, Enum):
+    FA_CONVERSIONS = "FA Conversions"
+    BNY_TRADE_CAPTURE = "BNY Trade Capture"
+    BNY_PRICING = "BNY Pricing"
+    BNY_CORPORATE_ACTIONS = "BNY Corporate Actions"
+    BNY_NAV_OPS = "BNY NAV Ops"
+    INCUMBENT = "Incumbent"
+    MATCH = "Match"
+
+
+class ReconciliationLevel(str, Enum):
+    L0_NAV = "L0_NAV"
+    L1_GL = "L1_GL"
+    L2_POSITION = "L2_POSITION"
+    L3_TRANSACTION = "L3_TRANSACTION"
+
+
+class BreakType(str, Enum):
+    SHARE_BREAK = "SHARE_BREAK"
+    PRICE_BREAK = "PRICE_BREAK"
+    INCOME_BREAK = "INCOME_BREAK"
+    RECLAIM_BREAK = "RECLAIM_BREAK"
+    CORP_ACTION = "CORP_ACTION"
+
+
+class NotificationChannel(str, Enum):
+    IN_APP = "IN_APP"
+    EMAIL = "EMAIL"
+    BOTH = "BOTH"
+
+
+class ReviewerAllocationDoc(BaseModel):
+    """Reviewer allocation record."""
+    allocationId: str
+    eventId: str
+    bnyAccount: str
+    incumbentAccount: str
+    accountName: str
+    valuationDate: str
+    assignedReviewerId: str
+    assignedReviewerName: str
+    reviewStatus: ReviewStatus = ReviewStatus.NOT_STARTED
+    createdBy: str
+    updatedAt: str
+
+
+class KnownDifferenceDoc(BaseModel):
+    """Known Difference configuration entry."""
+    reference: str
+    type: KnownDifferenceType
+    summary: str
+    issueDescription: Optional[str] = None
+    comment: str
+    isActive: bool = True
+    eventId: Optional[str] = None
+    createdAt: str
+    updatedBy: str
+
+
+class BreakAssignmentDoc(BaseModel):
+    """Break assignment record for resolution tracking."""
+    eventId: str
+    valuationDate: Optional[str] = None
+    entityReference: str
+    breakCategory: Optional[ResolutionBreakCategory] = None
+    assignedTeam: Optional[str] = None
+    assignedOwner: Optional[str] = None
+    breakAmount: Optional[float] = None
+    updatedAt: Optional[str] = None
+    updatedBy: Optional[str] = None
+
+
+class NotificationDoc(BaseModel):
+    """In-app notification record."""
+    notificationId: str
+    eventId: str
+    fundAccount: str
+    breakType: BreakType
+    securityId: Optional[str] = None
+    assignedTeam: str
+    assignedOwner: str
+    breakAmount: Optional[float] = None
+    valuationDate: Optional[str] = None
+    createdAt: str
+    isRead: bool = False
+    channel: NotificationChannel = NotificationChannel.IN_APP
+
+
+class CommentaryDoc(BaseModel):
+    """Commentary record for break resolution."""
+    commentId: str
+    eventId: Optional[str] = None
+    parentCommentId: Optional[str] = None
+    reconciliationLevel: ReconciliationLevel
+    entityReference: str
+    breakCategory: Optional[ResolutionBreakCategory] = None
+    amount: float = 0
+    text: str
+    knownDifferenceRef: Optional[str] = None
+    authorId: str
+    createdAt: str
+    isRolledUp: bool = False
+
+
+class AuditLogDoc(BaseModel):
+    """Audit trail record."""
+    eventId: str
+    action: str
+    entityReference: str
+    previousValue: Optional[str] = None
+    newValue: Optional[str] = None
+    changedBy: str
+    changedByName: Optional[str] = None
+    timestamp: str
+    metadata: Optional[dict] = None

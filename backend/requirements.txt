@@ -41,3 +41,6 @@ pytest-asyncio==0.23.5
 # Observability
 opentelemetry-api==1.22.0
 opentelemetry-sdk==1.22.0
+
+# Excel Export
+openpyxl==3.1.2

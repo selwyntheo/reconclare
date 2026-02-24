@@ -67,6 +67,7 @@ import {
   TransClassification,
   LedgerCategoryDerivation,
 } from '../../types';
+import { useAuth } from '../../context/AuthContext';
 
 // ── Constrained dropdown values (Section 10.6) ──────────────
 const CONV_ASSET_CLASSES = ['equity', 'fixedIncome', 'cash', 'future', 'mf', 'swapTrs', 'invalid'];
@@ -81,6 +82,8 @@ const SOURCE_SYSTEMS = ['investone', 'eagle'];
 
 const MappingConfiguration: React.FC = () => {
   const theme = useTheme();
+  const { role } = useAuth();
+  const canEdit = role === 'FUND_ACCOUNTANT' || role === 'RECON_LEAD';
   const [tabIndex, setTabIndex] = useState(0);
   const [sourceFilter, setSourceFilter] = useState('investone');
   const [searchTerm, setSearchTerm] = useState('');
@@ -330,9 +333,11 @@ const MappingConfiguration: React.FC = () => {
           <Button variant="outlined" startIcon={<FileDownloadIcon />} onClick={handleExport}>
             Export CSV
           </Button>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenCreate}>
-            Add Mapping
-          </Button>
+          {canEdit && (
+            <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenCreate}>
+              Add Mapping
+            </Button>
+          )}
         </Stack>
       </Stack>
 
@@ -398,7 +403,7 @@ const MappingConfiguration: React.FC = () => {
                   <TableCell sx={{ fontWeight: 600 }}>Security Type</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Asset Class</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>GL Category Impact</TableCell>
-                  <TableCell sx={{ fontWeight: 600, textAlign: 'center', width: 100 }}>Actions</TableCell>
+                  {canEdit && <TableCell sx={{ fontWeight: 600, textAlign: 'center', width: 100 }}>Actions</TableCell>}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -416,23 +421,25 @@ const MappingConfiguration: React.FC = () => {
                     <TableCell>
                       <Typography variant="body2" color="text.secondary">{row.glCategoryImpact}</Typography>
                     </TableCell>
-                    <TableCell align="center">
-                      <Tooltip title="Edit">
-                        <IconButton size="small" onClick={() => handleOpenEditAsset(row)}>
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Delete">
-                        <IconButton size="small" color="error" onClick={() => handleOpenDelete('asset', row.keySecType, row.keySource)}>
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
+                    {canEdit && (
+                      <TableCell align="center">
+                        <Tooltip title="Edit">
+                          <IconButton size="small" onClick={() => handleOpenEditAsset(row)}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete">
+                          <IconButton size="small" color="error" onClick={() => handleOpenDelete('asset', row.keySecType, row.keySource)}>
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
                 {filteredAssets.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} sx={{ textAlign: 'center', py: 4 }}>
+                    <TableCell colSpan={canEdit ? 5 : 4} sx={{ textAlign: 'center', py: 4 }}>
                       <Typography color="text.secondary">No asset classification mappings found</Typography>
                     </TableCell>
                   </TableRow>
@@ -452,7 +459,7 @@ const MappingConfiguration: React.FC = () => {
                   <TableCell sx={{ fontWeight: 600 }}>Trans Code</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Trans Class</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>RecPay Category</TableCell>
-                  <TableCell sx={{ fontWeight: 600, textAlign: 'center', width: 100 }}>Actions</TableCell>
+                  {canEdit && <TableCell sx={{ fontWeight: 600, textAlign: 'center', width: 100 }}>Actions</TableCell>}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -470,23 +477,25 @@ const MappingConfiguration: React.FC = () => {
                     <TableCell>
                       <Typography variant="body2" color="text.secondary">{row.recPayCategory}</Typography>
                     </TableCell>
-                    <TableCell align="center">
-                      <Tooltip title="Edit">
-                        <IconButton size="small" onClick={() => handleOpenEditTrans(row)}>
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Delete">
-                        <IconButton size="small" color="error" onClick={() => handleOpenDelete('trans', row.keyTransCode, row.keySource)}>
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
+                    {canEdit && (
+                      <TableCell align="center">
+                        <Tooltip title="Edit">
+                          <IconButton size="small" onClick={() => handleOpenEditTrans(row)}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete">
+                          <IconButton size="small" color="error" onClick={() => handleOpenDelete('trans', row.keyTransCode, row.keySource)}>
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
                 {filteredTrans.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} sx={{ textAlign: 'center', py: 4 }}>
+                    <TableCell colSpan={canEdit ? 5 : 4} sx={{ textAlign: 'center', py: 4 }}>
                       <Typography color="text.secondary">No transaction classification mappings found</Typography>
                     </TableCell>
                   </TableRow>
@@ -521,7 +530,7 @@ const MappingConfiguration: React.FC = () => {
                       <TableCell sx={{ fontWeight: 600 }}>URGL BS Category</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Int RecPay Cat</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Int URGL INCST Cat</TableCell>
-                      <TableCell sx={{ fontWeight: 600, textAlign: 'center', width: 100 }}>Actions</TableCell>
+                      {canEdit && <TableCell sx={{ fontWeight: 600, textAlign: 'center', width: 100 }}>Actions</TableCell>}
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -542,23 +551,25 @@ const MappingConfiguration: React.FC = () => {
                         <TableCell>
                           <Typography variant="body2">{row.intUrglIncstConvCat || '-'}</Typography>
                         </TableCell>
-                        <TableCell align="center">
-                          <Tooltip title="Edit">
-                            <IconButton size="small" onClick={() => handleOpenEditDerivation(row)}>
-                              <EditIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Delete">
-                            <IconButton size="small" color="error" onClick={() => handleOpenDelete('derivation', row.convTransClass || '', undefined, 'transaction')}>
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
+                        {canEdit && (
+                          <TableCell align="center">
+                            <Tooltip title="Edit">
+                              <IconButton size="small" onClick={() => handleOpenEditDerivation(row)}>
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Delete">
+                              <IconButton size="small" color="error" onClick={() => handleOpenDelete('derivation', row.convTransClass || '', undefined, 'transaction')}>
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                     {filteredDerivations.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={6} sx={{ textAlign: 'center', py: 4 }}>
+                        <TableCell colSpan={canEdit ? 6 : 5} sx={{ textAlign: 'center', py: 4 }}>
                           <Typography color="text.secondary">No transaction-based derivation mappings found</Typography>
                         </TableCell>
                       </TableRow>
@@ -577,7 +588,7 @@ const MappingConfiguration: React.FC = () => {
                       <TableCell sx={{ fontWeight: 600 }}>Daily Margin Cat</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Int RecPay Cat</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Int URGL INCST Cat</TableCell>
-                      <TableCell sx={{ fontWeight: 600, textAlign: 'center', width: 100 }}>Actions</TableCell>
+                      {canEdit && <TableCell sx={{ fontWeight: 600, textAlign: 'center', width: 100 }}>Actions</TableCell>}
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -601,23 +612,25 @@ const MappingConfiguration: React.FC = () => {
                         <TableCell>
                           <Typography variant="body2">{row.intUrglIncstCat || '-'}</Typography>
                         </TableCell>
-                        <TableCell align="center">
-                          <Tooltip title="Edit">
-                            <IconButton size="small" onClick={() => handleOpenEditDerivation(row)}>
-                              <EditIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Delete">
-                            <IconButton size="small" color="error" onClick={() => handleOpenDelete('derivation', row.convAssetClass || '', undefined, 'asset')}>
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
+                        {canEdit && (
+                          <TableCell align="center">
+                            <Tooltip title="Edit">
+                              <IconButton size="small" onClick={() => handleOpenEditDerivation(row)}>
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Delete">
+                              <IconButton size="small" color="error" onClick={() => handleOpenDelete('derivation', row.convAssetClass || '', undefined, 'asset')}>
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                     {filteredDerivations.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={7} sx={{ textAlign: 'center', py: 4 }}>
+                        <TableCell colSpan={canEdit ? 7 : 6} sx={{ textAlign: 'center', py: 4 }}>
                           <Typography color="text.secondary">No asset-based derivation mappings found</Typography>
                         </TableCell>
                       </TableRow>

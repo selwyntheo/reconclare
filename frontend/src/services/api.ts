@@ -111,6 +111,8 @@ export interface AnnotationRequest {
   reviewerUserId?: string;
   reviewerName?: string;
   reviewerRole?: string;
+  reassignedToTeam?: string;
+  reassignReason?: string;
 }
 
 export async function annotateBreak(breakId: string, req: AnnotationRequest) {
@@ -442,6 +444,265 @@ export async function deleteLedgerCategoryDerivation(key: string, type: string =
   return fetchJSON(`/api/reference/ledger-category-derivation/${encodeURIComponent(key)}?type=${encodeURIComponent(type)}`, {
     method: 'DELETE',
   });
+}
+
+// ══════════════════════════════════════════════════════════════
+// BREAK RESOLUTION & DASHBOARDING ENDPOINTS
+// ══════════════════════════════════════════════════════════════
+
+// ── Known Differences ────────────────────────────────────────
+
+export async function fetchKnownDifferences(eventId: string, active?: boolean) {
+  const params = active !== undefined ? `?active=${active}` : '';
+  return fetchJSON<any[]>(`/api/events/${eventId}/known-differences${params}`);
+}
+
+export async function createKnownDifference(eventId: string, data: Record<string, unknown>) {
+  return fetchJSON<any>(`/api/events/${eventId}/known-differences`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateKnownDifference(eventId: string, reference: string, data: Record<string, unknown>) {
+  return fetchJSON<any>(`/api/events/${eventId}/known-differences/${encodeURIComponent(reference)}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteKnownDifference(eventId: string, reference: string) {
+  return fetchJSON<any>(`/api/events/${eventId}/known-differences/${encodeURIComponent(reference)}`, {
+    method: 'DELETE',
+  });
+}
+
+// ── Break Resolution ─────────────────────────────────────────
+
+export async function updateBreakCategory(entityRef: string, data: { eventId: string; breakCategory: string; changedBy: string }) {
+  return fetchJSON<any>(`/api/breaks/${encodeURIComponent(entityRef)}/category`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateBreakTeam(entityRef: string, data: { eventId: string; assignedTeam: string; assignedOwner?: string; changedBy: string }) {
+  return fetchJSON<any>(`/api/breaks/${encodeURIComponent(entityRef)}/team`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function fetchBreakSummary(eventId: string, valuationDt?: string) {
+  const params = valuationDt ? `?valuationDt=${valuationDt}` : '';
+  return fetchJSON<Record<string, { count: number; totalAmount: number }>>(`/api/events/${eventId}/break-summary${params}`);
+}
+
+export async function updateReviewStatus(eventId: string, account: string, data: { reviewStatus: string; valuationDt: string; changedBy: string }) {
+  return fetchJSON<any>(`/api/events/${eventId}/funds/${account}/review-status`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+// ── Reviewer Allocations ────────────────────────────────────
+
+export async function fetchAllocations(eventId: string, valuationDt?: string) {
+  const params = valuationDt ? `/${valuationDt}` : '';
+  return fetchJSON<any[]>(`/api/events/${eventId}/allocations${params}`);
+}
+
+export async function updateAllocations(eventId: string, data: { allocations: any[]; changedBy: string }) {
+  return fetchJSON<any>(`/api/events/${eventId}/allocations`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function copyAllocations(eventId: string, data: { fromDate: string; toDate: string; changedBy: string }) {
+  return fetchJSON<any>(`/api/events/${eventId}/allocations/copy`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function fetchReviewers() {
+  return fetchJSON<any[]>('/api/users/reviewers');
+}
+
+// ── NAV Views ────────────────────────────────────────────────
+
+export async function fetchShareClasses(eventId: string, account: string, valuationDt: string) {
+  return fetchJSON<any[]>(`/api/events/${eventId}/funds/${account}/share-classes?valuationDt=${valuationDt}`);
+}
+
+export async function fetchScorecard(eventId: string, valuationDt: string) {
+  return fetchJSON<any[]>(`/api/events/${eventId}/scorecard?valuationDt=${valuationDt}`);
+}
+
+export async function fetchRagTracker(eventId: string) {
+  return fetchJSON<any>(`/api/events/${eventId}/rag-tracker`);
+}
+
+export async function fetchRagThresholds(eventId: string) {
+  return fetchJSON<any>(`/api/events/${eventId}/rag-thresholds`);
+}
+
+export async function updateRagThresholds(eventId: string, thresholds: { greenMaxBP: number; amberMaxBP: number }) {
+  return fetchJSON<any>(`/api/events/${eventId}/rag-thresholds`, {
+    method: 'PUT',
+    body: JSON.stringify(thresholds),
+  });
+}
+
+export async function updateScorecardOverrides(eventId: string, data: Record<string, unknown>) {
+  return fetchJSON<any>(`/api/events/${eventId}/scorecard/overrides`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+// ── Position Sub-Views ──────────────────────────────────────
+
+export async function fetchShareBreaks(eventId: string, account: string, valuationDt: string) {
+  return fetchJSON<any[]>(`/api/events/${eventId}/funds/${account}/positions/share-breaks?valuationDt=${valuationDt}`);
+}
+
+export async function fetchAllShareBreaks(eventId: string, valuationDt: string) {
+  return fetchJSON<any[]>(`/api/events/${eventId}/positions/share-breaks?valuationDt=${valuationDt}`);
+}
+
+export async function fetchPriceBreaks(eventId: string, account: string, valuationDt: string) {
+  return fetchJSON<any[]>(`/api/events/${eventId}/funds/${account}/positions/price-breaks?valuationDt=${valuationDt}`);
+}
+
+export async function fetchAllPriceBreaks(eventId: string, valuationDt: string) {
+  return fetchJSON<any[]>(`/api/events/${eventId}/positions/price-breaks?valuationDt=${valuationDt}`);
+}
+
+export async function fetchPositionTaxLots(eventId: string, account: string, valuationDt: string) {
+  return fetchJSON<any[]>(`/api/events/${eventId}/funds/${account}/positions/tax-lots?valuationDt=${valuationDt}`);
+}
+
+// ── Income Views ─────────────────────────────────────────────
+
+export async function fetchDividends(eventId: string, account: string, valuationDt: string) {
+  return fetchJSON<any[]>(`/api/events/${eventId}/funds/${account}/income/dividends?valuationDt=${valuationDt}`);
+}
+
+export async function fetchDividendDetail(eventId: string, account: string, assetId: string, valuationDt: string) {
+  return fetchJSON<any[]>(`/api/events/${eventId}/funds/${account}/income/dividends/${encodeURIComponent(assetId)}/detail?valuationDt=${valuationDt}`);
+}
+
+export async function fetchAllDividends(eventId: string, valuationDt: string) {
+  return fetchJSON<any[]>(`/api/events/${eventId}/income/dividends?valuationDt=${valuationDt}`);
+}
+
+export async function fetchDividendFundSummary(eventId: string, valuationDt: string) {
+  return fetchJSON<any[]>(`/api/events/${eventId}/income/dividends/fund-summary?valuationDt=${valuationDt}`);
+}
+
+export async function fetchIncomeTieBack(eventId: string, account: string, valuationDt: string) {
+  return fetchJSON<{ totalNetIncomeDiff: number; tbSubClassBalance: number; tieBackPass: boolean }>(
+    `/api/events/${eventId}/funds/${account}/income/tie-back?valuationDt=${valuationDt}`
+  );
+}
+
+export async function fetchFixedIncomeIncome(eventId: string, account: string, valuationDt: string) {
+  return fetchJSON<any[]>(`/api/events/${eventId}/funds/${account}/income/fixed-income?valuationDt=${valuationDt}`);
+}
+
+export async function fetchAllFixedIncomeIncome(eventId: string, valuationDt: string) {
+  return fetchJSON<any[]>(`/api/events/${eventId}/income/fixed-income?valuationDt=${valuationDt}`);
+}
+
+// ── Derivatives Views ────────────────────────────────────────
+
+export async function fetchForwards(eventId: string, account: string, valuationDt: string) {
+  return fetchJSON<any[]>(`/api/events/${eventId}/funds/${account}/derivatives/forwards?valuationDt=${valuationDt}`);
+}
+
+export async function fetchAllForwards(eventId: string, valuationDt: string) {
+  return fetchJSON<any[]>(`/api/events/${eventId}/derivatives/forwards?valuationDt=${valuationDt}`);
+}
+
+export async function fetchFutures(eventId: string, account: string, valuationDt: string) {
+  return fetchJSON<any[]>(`/api/events/${eventId}/funds/${account}/derivatives/futures?valuationDt=${valuationDt}`);
+}
+
+export async function fetchAllFutures(eventId: string, valuationDt: string) {
+  return fetchJSON<any[]>(`/api/events/${eventId}/derivatives/futures?valuationDt=${valuationDt}`);
+}
+
+// ── Commentary ───────────────────────────────────────────────
+
+export async function fetchCommentary(eventId: string, account: string) {
+  return fetchJSON<any[]>(`/api/events/${eventId}/funds/${account}/commentary`);
+}
+
+export async function createCommentary(eventId: string, account: string, data: Record<string, unknown>) {
+  return fetchJSON<any>(`/api/events/${eventId}/funds/${account}/commentary`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateCommentary(eventId: string, account: string, commentId: string, data: Record<string, unknown>) {
+  return fetchJSON<any>(`/api/events/${eventId}/funds/${account}/commentary/${commentId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteCommentary(eventId: string, account: string, commentId: string) {
+  return fetchJSON<any>(`/api/events/${eventId}/funds/${account}/commentary/${commentId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function fetchCommentaryRollup(eventId: string, account: string, level?: string) {
+  const params = level ? `?level=${level}` : '';
+  return fetchJSON<any[]>(`/api/events/${eventId}/funds/${account}/commentary/rollup${params}`);
+}
+
+// ── Notifications ────────────────────────────────────────────
+
+export async function fetchNotifications(isRead?: boolean) {
+  const params = isRead !== undefined ? `?isRead=${isRead}` : '';
+  return fetchJSON<any[]>(`/api/notifications${params}`);
+}
+
+export async function markNotificationRead(id: string) {
+  return fetchJSON<any>(`/api/notifications/${id}/read`, { method: 'PUT' });
+}
+
+export async function fetchNotificationCount() {
+  return fetchJSON<{ unread: number }>('/api/notifications/count');
+}
+
+// ── Export & Audit ───────────────────────────────────────────
+
+export async function exportToExcel(data: { viewType: string; eventId: string; filters?: Record<string, unknown> }) {
+  const response = await fetch(`${API_BASE}/api/export/excel`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error(`Export failed: ${response.status}`);
+  return response.blob();
+}
+
+export async function fetchAuditLogs(eventId: string, params?: { action?: string; entity?: string; from?: string; to?: string; user?: string; limit?: number; offset?: number }) {
+  const searchParams = new URLSearchParams();
+  if (params?.action) searchParams.set('action', params.action);
+  if (params?.entity) searchParams.set('entity', params.entity);
+  if (params?.from) searchParams.set('from', params.from);
+  if (params?.to) searchParams.set('to', params.to);
+  if (params?.user) searchParams.set('user', params.user);
+  if (params?.limit) searchParams.set('limit', String(params.limit));
+  if (params?.offset) searchParams.set('offset', String(params.offset));
+  const qs = searchParams.toString();
+  return fetchJSON<{ logs: any[]; total: number }>(`/api/events/${eventId}/audit${qs ? `?${qs}` : ''}`);
 }
 
 // ── Health Check ────────────────────────────────────────────
