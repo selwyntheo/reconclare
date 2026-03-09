@@ -33,6 +33,7 @@ numpy==1.26.4
 # API Layer
 fastapi==0.109.2
 uvicorn==0.27.1
+python-multipart==0.0.9
 
 # Testing
 pytest==8.0.1
@@ -44,3 +45,10 @@ opentelemetry-sdk==1.22.0
 
 # Excel Export
 openpyxl==3.1.2
+
+# Data Mapping Engine
+cel-python==0.4.0
+lxml==5.1.0
+pyarrow==15.0.0
+jsonpath-ng==1.6.1
+anthropic==0.18.1

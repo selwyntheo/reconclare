@@ -39,6 +39,7 @@ export interface RolePermissions {
     positionDrillDown: ScreenAccess;
     reviewerAllocation: ScreenAccess;
     navShareClass: ScreenAccess;
+    navShareClassDashboard: ScreenAccess;
     navClientScorecard: ScreenAccess;
     navRagTracker: ScreenAccess;
     positionsShareBreaks: ScreenAccess;
@@ -48,6 +49,7 @@ export interface RolePermissions {
     incomeFixedIncome: ScreenAccess;
     derivativesForwards: ScreenAccess;
     derivativesFutures: ScreenAccess;
+    dataMapping: ScreenAccess;
   };
   positionSubViews: PositionSubView[];
   defaultPositionSubView: PositionSubView;

@@ -30,6 +30,7 @@ import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import CategoryIcon from '@mui/icons-material/Category';
+import TransformIcon from '@mui/icons-material/Transform';
 import { useAuth } from '../context/AuthContext';
 import { AppRole } from '../types/rbac';
 import { ROLE_PERMISSIONS } from '../config/permissions';
@@ -50,6 +51,7 @@ const navItems: NavItem[] = [
   { label: 'Ledger Mapping', icon: <AccountBalanceWalletIcon />, path: '/ledger-mapping' },
   { label: 'GL Account Mapping', icon: <SwapHorizIcon />, path: '/gl-account-mapping' },
   { label: 'Classification Mapping', icon: <CategoryIcon />, path: '/admin/mappings' },
+  { label: 'Data Mapping', icon: <TransformIcon />, path: '/data-mapping' },
 ];
 
 const ROLE_OPTIONS: { value: AppRole; label: string }[] = Object.values(ROLE_PERMISSIONS).map((p) => ({

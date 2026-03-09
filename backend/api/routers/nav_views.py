@@ -1,4 +1,5 @@
 """NAV Share Class, Client Scorecard, RAG Tracker endpoints."""
+import asyncio
 from typing import Optional
 
 from fastapi import APIRouter, Query
@@ -21,10 +22,10 @@ async def get_share_classes(
 
     # Fetch BNY and Incumbent NAV data at share class level
     bny_data = await db[COLLECTIONS["navSummary"]].find(
-        {**query, "userBank": "BNY"}, {"_id": 0}
+        {**query, "userBank": "CPU"}, {"_id": 0}
     ).to_list(200)
     inc_data = await db[COLLECTIONS["navSummary"]].find(
-        {**query, "userBank": {"$ne": "BNY"}}, {"_id": 0}
+        {**query, "userBank": "INCUMBENT"}, {"_id": 0}
     ).to_list(200)
 
     # Build share class comparison
@@ -53,6 +54,74 @@ async def get_share_classes(
             "incumbentNavPerShareBase": inc_nav / inc_units if inc_units else 0,
         })
     return results
+
+
+@router.get("/events/{event_id}/share-class-dashboard")
+async def get_share_class_dashboard(
+    event_id: str,
+    valuationDt: Optional[str] = Query(None),
+):
+    """Cross-fund share class dashboard — all share classes across all funds."""
+    db = get_async_db()
+    event = await db[COLLECTIONS["events"]].find_one(
+        {"eventId": event_id}, {"_id": 0}
+    )
+    if not event:
+        return []
+
+    funds = event.get("funds", [])
+
+    async def _process_fund(fund: dict):
+        account = fund["account"]
+        fund_name = fund.get("fundName", account)
+        query: dict = {"account": account}
+        if valuationDt:
+            query["valuationDt"] = valuationDt
+
+        bny_data = await db[COLLECTIONS["navSummary"]].find(
+            {**query, "userBank": "CPU"}, {"_id": 0}
+        ).to_list(200)
+        inc_data = await db[COLLECTIONS["navSummary"]].find(
+            {**query, "userBank": "INCUMBENT"}, {"_id": 0}
+        ).to_list(200)
+
+        inc_by_class = {r.get("shareClass", ""): r for r in inc_data}
+        rows = []
+        for bny in bny_data:
+            sc = bny.get("shareClass", "")
+            inc = inc_by_class.get(sc, {})
+
+            bny_units = bny.get("sharesOutstanding", 0)
+            inc_units = inc.get("sharesOutstanding", 0)
+            bny_nav = bny.get("netAssets", 0)
+            inc_nav = inc.get("netAssets", 0)
+            bny_nav_per_share = bny_nav / bny_units if bny_units else 0
+            inc_nav_per_share = inc_nav / inc_units if inc_units else 0
+
+            bp = (bny_nav - inc_nav) / inc_nav * 10000 if inc_nav else 0
+            abs_bp = abs(bp)
+            rag = "Green" if abs_bp <= 5 else ("Amber" if abs_bp <= 50 else "Red")
+
+            rows.append({
+                "account": account,
+                "accountName": fund_name,
+                "shareClass": sc,
+                "bnyUnits": bny_units,
+                "incumbentUnits": inc_units,
+                "unitsDifference": bny_units - inc_units,
+                "bnyNetAssets": bny_nav,
+                "incumbentNetAssets": inc_nav,
+                "netAssetsDifference": bny_nav - inc_nav,
+                "bnyNavPerShare": round(bny_nav_per_share, 6),
+                "incumbentNavPerShare": round(inc_nav_per_share, 6),
+                "navPerShareDifference": round(bny_nav_per_share - inc_nav_per_share, 6),
+                "ragStatus": rag,
+                "basisPointsDifference": round(bp, 2),
+            })
+        return rows
+
+    results = await asyncio.gather(*[_process_fund(f) for f in funds])
+    return [row for fund_rows in results for row in fund_rows]
 
 
 @router.get("/events/{event_id}/scorecard")
@@ -86,10 +155,10 @@ async def get_client_scorecard(
 
         # Aggregate NAV by fund
         bny_nav_records = await db[COLLECTIONS["navSummary"]].find(
-            {**query, "userBank": "BNY"}, {"_id": 0}
+            {**query, "userBank": "CPU"}, {"_id": 0}
         ).to_list(100)
         inc_nav_records = await db[COLLECTIONS["navSummary"]].find(
-            {**query, "userBank": {"$ne": "BNY"}}, {"_id": 0}
+            {**query, "userBank": "INCUMBENT"}, {"_id": 0}
         ).to_list(100)
 
         bny_total = sum(r.get("netAssets", 0) for r in bny_nav_records)
@@ -181,10 +250,10 @@ async def get_rag_tracker(event_id: str):
         }
         for dt in dates:
             bny_records = await db[COLLECTIONS["navSummary"]].find(
-                {"account": fund["account"], "valuationDt": dt, "userBank": "BNY"}, {"_id": 0}
+                {"account": fund["account"], "valuationDt": dt, "userBank": "CPU"}, {"_id": 0}
             ).to_list(100)
             inc_records = await db[COLLECTIONS["navSummary"]].find(
-                {"account": fund["account"], "valuationDt": dt, "userBank": {"$ne": "BNY"}}, {"_id": 0}
+                {"account": fund["account"], "valuationDt": dt, "userBank": "INCUMBENT"}, {"_id": 0}
             ).to_list(100)
             bny_total = sum(r.get("netAssets", 0) for r in bny_records)
             inc_total = sum(r.get("netAssets", 0) for r in inc_records)

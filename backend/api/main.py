@@ -91,6 +91,31 @@ async def lifespan(app: FastAPI):
     await db[COLLECTIONS["auditLogs"]].create_index(
         "timestamp", expireAfterSeconds=365 * 24 * 3600, background=True
     )
+    # Data Mapping indexes
+    await db[COLLECTIONS["mappingDefinitions"]].create_index(
+        [("status", 1), ("updatedAt", -1)], background=True
+    )
+    await db[COLLECTIONS["mappingDefinitions"]].create_index(
+        [("tags", 1)], background=True
+    )
+    await db[COLLECTIONS["mappingDefinitions"]].create_index(
+        "mappingId", unique=True, background=True
+    )
+    await db[COLLECTIONS["mappingJobs"]].create_index(
+        [("mappingId", 1), ("status", 1)], background=True
+    )
+    await db[COLLECTIONS["mappingJobs"]].create_index(
+        "jobId", unique=True, background=True
+    )
+    await db[COLLECTIONS["lookupTables"]].create_index(
+        "tableId", unique=True, background=True
+    )
+    await db[COLLECTIONS["lookupTables"]].create_index(
+        "name", unique=True, background=True
+    )
+    await db[COLLECTIONS["mappingAuditLog"]].create_index(
+        [("mappingId", 1), ("timestamp", -1)], background=True
+    )
     yield
     # Shutdown
     await close_async_db()

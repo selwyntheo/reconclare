@@ -53,7 +53,11 @@ export const DrillDownBreadcrumb: React.FC = () => {
       return renderBreadcrumbs(segments, navigate);
     }
 
-    // NAV sub-views (scorecard, rag-tracker, share-class)
+    // NAV sub-views (scorecard, rag-tracker, share-class-dashboard, share-class)
+    if (pathname.includes('/nav-dashboard/share-class-dashboard')) {
+      segments.push({ label: 'Share Class Dashboard' });
+      return renderBreadcrumbs(segments, navigate);
+    }
     if (pathname.includes('/nav-dashboard/scorecard')) {
       segments.push({ label: 'Client Scorecard' });
       return renderBreadcrumbs(segments, navigate);

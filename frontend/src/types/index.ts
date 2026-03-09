@@ -610,5 +610,24 @@ export interface LedgerCategoryDerivation {
 // ── GL Account Mapping Types ─────────────────────────────────
 export * from './glMapping';
 
+// ── Share Class Dashboard Row ─────────────────────────────────
+
+export interface ShareClassDashboardRow {
+  account: string;
+  accountName: string;
+  shareClass: string;
+  bnyUnits: number;
+  incumbentUnits: number;
+  unitsDifference: number;
+  bnyNetAssets: number;
+  incumbentNetAssets: number;
+  netAssetsDifference: number;
+  bnyNavPerShare: number;
+  incumbentNavPerShare: number;
+  navPerShareDifference: number;
+  ragStatus: 'Green' | 'Amber' | 'Red';
+  basisPointsDifference: number;
+}
+
 // ── Break Resolution & Dashboarding Types ────────────────────
 export * from './breakResolution';

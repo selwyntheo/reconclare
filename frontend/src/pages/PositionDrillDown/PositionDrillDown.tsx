@@ -63,6 +63,8 @@ import PositionValidationView from '../../components/validation/PositionValidati
 import { useAuth } from '../../context/AuthContext';
 import { PositionSubView } from '../../types/rbac';
 import { getPositionSubViews } from '../../config/permissions';
+import ColumnPicker, { ColumnOption } from '../../components/shared/ColumnPicker';
+import { useColumnVisibility } from '../../hooks/useColumnVisibility';
 import BreakCategorySelector from '../../components/shared/BreakCategorySelector';
 import BreakTeamDropdown from '../../components/shared/BreakTeamDropdown';
 import { updateBreakCategory, updateBreakTeam } from '../../services/api';
@@ -366,41 +368,58 @@ const PositionDrillDown: React.FC = () => {
 
   const defaultColDef = useMemo(() => ({ sortable: true, filter: true, resizable: true }), []);
 
-  // Build dynamic comparison columns from the first row's comparisonFields
+  // Build available comparison column options for ColumnPicker
+  const availableComparisonColumns = useMemo((): ColumnOption[] => {
+    if (positions.length === 0) return [];
+    return positions[0].comparisonFields.flatMap((field) => [
+      { id: `${field.fieldName}_inc`, label: `${field.fieldName} (Inc)`, group: field.fieldName },
+      { id: `${field.fieldName}_bny`, label: `${field.fieldName} (BNY)`, group: field.fieldName },
+      { id: `${field.fieldName}_var`, label: `${field.fieldName} (Var)`, group: field.fieldName },
+    ]);
+  }, [positions]);
+
+  const allCompColIds = useMemo(() => availableComparisonColumns.map((c) => c.id), [availableComparisonColumns]);
+  const { visibleColumns, setVisibleColumns } = useColumnVisibility('reconai-pos-cols', allCompColIds);
+
+  // Build dynamic comparison columns from the first row's comparisonFields, filtered by visibility
   const comparisonColumnDefs = useMemo((): ColDef<PositionCompareRow>[] => {
     if (positions.length === 0) return [];
     const fields = positions[0].comparisonFields;
     const cols: ColDef<PositionCompareRow>[] = [];
 
     fields.forEach((field, idx) => {
-      cols.push(
-        {
+      if (visibleColumns.includes(`${field.fieldName}_inc`)) {
+        cols.push({
           headerName: `${field.fieldName} (Inc)`,
           width: 140,
           type: 'numericColumn',
           valueGetter: (p) => p.data?.comparisonFields[idx]?.incumbent,
           valueFormatter: (p) => formatCurrency(p.value ?? 0),
-        },
-        {
+        });
+      }
+      if (visibleColumns.includes(`${field.fieldName}_bny`)) {
+        cols.push({
           headerName: `${field.fieldName} (BNY)`,
           width: 140,
           type: 'numericColumn',
           valueGetter: (p) => p.data?.comparisonFields[idx]?.bny,
           valueFormatter: (p) => formatCurrency(p.value ?? 0),
-        },
-        {
+        });
+      }
+      if (visibleColumns.includes(`${field.fieldName}_var`)) {
+        cols.push({
           headerName: `${field.fieldName} (Var)`,
           width: 140,
           type: 'numericColumn',
           valueGetter: (p) => p.data?.comparisonFields[idx]?.variance,
           valueFormatter: (p) => formatCurrency(p.value ?? 0),
           cellStyle: (p) => p.value != null && p.value < 0 ? { color: '#d32f2f' } : null,
-        },
-      );
+        });
+      }
     });
 
     return cols;
-  }, [positions]);
+  }, [positions, visibleColumns]);
 
   const columnDefs: ColDef<PositionCompareRow>[] = useMemo(() => [
     {
@@ -638,8 +657,8 @@ const PositionDrillDown: React.FC = () => {
               </Button>
             </Stack>
 
-            {!permissions.screens.positionDrillDown.readOnly && (
-              <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
+            <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
+              {!permissions.screens.positionDrillDown.readOnly && (
                 <Button
                   size="small"
                   startIcon={<AutoFixHighIcon />}
@@ -649,8 +668,15 @@ const PositionDrillDown: React.FC = () => {
                 >
                   Request Analysis
                 </Button>
-              </Stack>
-            )}
+              )}
+              {availableComparisonColumns.length > 0 && (
+                <ColumnPicker
+                  availableColumns={availableComparisonColumns}
+                  visibleColumns={visibleColumns}
+                  onChange={setVisibleColumns}
+                />
+              )}
+            </Stack>
 
             {/* Position Compare Grid, Basis Lot Grid, or Coming Soon */}
             <Box sx={{ flex: 1, minHeight: 300 }} role="region" aria-label="Position data grid">

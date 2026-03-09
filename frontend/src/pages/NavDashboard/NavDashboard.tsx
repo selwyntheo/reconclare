@@ -36,6 +36,8 @@ import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 
 import { DrillDownBreadcrumb } from '../../components/shared/DrillDownBreadcrumb';
+import NavSubViewNav from '../../components/shared/NavSubViewNav';
+import NavKpiCards, { NavKpiData } from '../../components/shared/NavKpiCards';
 import { ValidationStatus } from '../../components/shared/ValidationStatus';
 import { AICommentaryPanel } from '../../components/shared/AICommentaryPanel';
 import { useDrillDownState, useDrillDownDispatch } from '../../context/DrillDownContext';
@@ -184,6 +186,30 @@ const NavDashboard: React.FC = () => {
         .finally(() => setAiLoading(false));
     }
   }, [eventId, selectedFund]);
+
+  // ── KPI Data ───────────────────────────────────────────
+  const kpiData: NavKpiData = useMemo(() => {
+    const totalVariance = funds.reduce((s, f) => s + (f.tnaDifference || 0), 0);
+    const totalInc = funds.reduce((s, f) => s + (f.incumbentTNA || 0), 0);
+    const totalVarianceBP = totalInc !== 0 ? (totalVariance / totalInc) * 10000 : 0;
+    const greenCount = funds.filter((f) => Math.abs(f.tnaDifferenceBP || 0) <= 5).length;
+    const amberCount = funds.filter((f) => { const a = Math.abs(f.tnaDifferenceBP || 0); return a > 5 && a <= 50; }).length;
+    const redCount = funds.filter((f) => Math.abs(f.tnaDifferenceBP || 0) > 50).length;
+    const sorted = [...funds].sort((a, b) => Math.abs(b.tnaDifferenceBP || 0) - Math.abs(a.tnaDifferenceBP || 0));
+    const largest = sorted[0];
+    const completedReviews = Object.values(allocations).filter((a) => a.reviewStatus === 'COMPLETE').length;
+    return {
+      totalVariance,
+      totalVarianceBP,
+      greenCount,
+      amberCount,
+      redCount,
+      totalItems: funds.length,
+      itemLabel: 'Funds',
+      largestBreak: largest ? { name: largest.accountName || largest.account, bpValue: largest.tnaDifferenceBP || 0 } : undefined,
+      reviewProgress: { completed: completedReviews, total: funds.length },
+    };
+  }, [funds, allocations]);
 
   const handleRunValidation = async () => {
     if (!eventId || !valuationDt) return;
@@ -446,29 +472,10 @@ const NavDashboard: React.FC = () => {
         </Paper>
 
         {/* NAV Sub-View Navigation */}
-        <Paper sx={{ mb: 1 }} elevation={0}>
-          <Stack direction="row" spacing={1} sx={{ px: 1, pt: 0.5 }}>
-            <Button size="small" variant="text" sx={{ fontWeight: 600, textTransform: 'none' }} disabled>
-              Fund Level
-            </Button>
-            <Button
-              size="small"
-              variant="text"
-              sx={{ textTransform: 'none' }}
-              onClick={() => navigate(`/events/${eventId}/nav-dashboard/scorecard?valuationDt=${valuationDt}`)}
-            >
-              Client Scorecard
-            </Button>
-            <Button
-              size="small"
-              variant="text"
-              sx={{ textTransform: 'none' }}
-              onClick={() => navigate(`/events/${eventId}/nav-dashboard/rag-tracker`)}
-            >
-              RAG Status
-            </Button>
-          </Stack>
-        </Paper>
+        <NavSubViewNav currentView="fund-level" />
+
+        {/* KPI Summary Cards */}
+        {!loading && funds.length > 0 && <NavKpiCards data={kpiData} />}
 
         {/* Reconciliation / Validation Tabs */}
         <Paper sx={{ mb: 1 }} elevation={0}>

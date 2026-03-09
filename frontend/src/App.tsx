@@ -21,9 +21,14 @@ const TrialBalance = lazy(() => import('./pages/TrialBalance/TrialBalance'));
 const PositionDrillDown = lazy(() => import('./pages/PositionDrillDown/PositionDrillDown'));
 const ValidationRunView = lazy(() => import('./pages/ValidationRunView/ValidationRunView'));
 
+// Data Mapping Utility — lazy-loaded
+const DataMappingList = lazy(() => import('./pages/DataMapping/DataMappingList'));
+const DataMappingDesigner = lazy(() => import('./pages/DataMapping/DataMappingDesigner'));
+
 // Break Resolution & Dashboarding — lazy-loaded
 const ReviewerAllocation = lazy(() => import('./pages/ReviewerAllocation/ReviewerAllocation'));
 const NavShareClass = lazy(() => import('./pages/NavShareClass/NavShareClass'));
+const NavShareClassDashboard = lazy(() => import('./pages/NavShareClassDashboard/NavShareClassDashboard'));
 const NavClientScorecard = lazy(() => import('./pages/NavClientScorecard/NavClientScorecard'));
 const NavRagTracker = lazy(() => import('./pages/NavRagTracker/NavRagTracker'));
 const PositionsShareBreaks = lazy(() => import('./pages/PositionsShareBreaks/PositionsShareBreaks'));
@@ -62,6 +67,7 @@ function App() {
               <Route path="events/:eventId/allocations" element={<DrillDownProvider><ProtectedRoute screen="reviewerAllocation"><ReviewerAllocation /></ProtectedRoute></DrillDownProvider>} />
 
               {/* NAV Sub-Views */}
+              <Route path="events/:eventId/nav-dashboard/share-class-dashboard" element={<DrillDownProvider><ProtectedRoute screen="navShareClassDashboard"><NavShareClassDashboard /></ProtectedRoute></DrillDownProvider>} />
               <Route path="events/:eventId/nav-dashboard/share-class/:account" element={<DrillDownProvider><ProtectedRoute screen="navShareClass"><NavShareClass /></ProtectedRoute></DrillDownProvider>} />
               <Route path="events/:eventId/nav-dashboard/scorecard" element={<DrillDownProvider><ProtectedRoute screen="navClientScorecard"><NavClientScorecard /></ProtectedRoute></DrillDownProvider>} />
               <Route path="events/:eventId/nav-dashboard/rag-tracker" element={<DrillDownProvider><ProtectedRoute screen="navRagTracker"><NavRagTracker /></ProtectedRoute></DrillDownProvider>} />
@@ -86,6 +92,10 @@ function App() {
               <Route path="gl-account-mapping" element={<GLAccountMapping />} />
               <Route path="gl-account-mapping/:eventId" element={<GLAccountMapping />} />
               <Route path="admin/mappings" element={<MappingConfiguration />} />
+
+              {/* Data Mapping Utility */}
+              <Route path="data-mapping" element={<ProtectedRoute screen="dataMapping"><DataMappingList /></ProtectedRoute>} />
+              <Route path="data-mapping/:mappingId" element={<ProtectedRoute screen="dataMapping"><DataMappingDesigner /></ProtectedRoute>} />
             </Route>
           </Routes>
         </Suspense>

@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     CRITICAL_BREAK_THRESHOLD: float = 0.0005  # 0.05% of NAV
     MAX_DRILL_DOWN_DEPTH: int = 4  # L0 through L3
 
+    # Data Mapping Engine
+    MAPPING_DATA_DIR: str = "./data/mapping"
+    MAPPING_MAX_SYNC_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB
+    MAPPING_MAX_ERROR_COUNT: int = 1000
+
     # API
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000

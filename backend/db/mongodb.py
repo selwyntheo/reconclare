@@ -116,4 +116,9 @@ COLLECTIONS = {
     "notifications": "notifications",
     "commentary": "commentary",
     "auditLogs": "auditLogs",
+    # Data Mapping Tables
+    "mappingDefinitions": "mappingDefinitions",
+    "mappingJobs": "mappingJobs",
+    "lookupTables": "lookupTables",
+    "mappingAuditLog": "mappingAuditLog",
 }

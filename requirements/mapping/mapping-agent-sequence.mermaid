@@ -1,0 +1,146 @@
+sequenceDiagram
+    autonumber
+    participant U as 👤 User / Mapper
+    participant UI as 🖥️ Browser UI<br/>(Two-Panel)
+    participant WS as 🔌 WebSocket
+    participant Orch as 🧠 Agent Orchestrator
+    participant CTX as 📋 Context Assembler
+    participant LLM as 🤖 Claude API
+    participant Tools as 🔧 Tool Executor
+    participant DB as 💾 Session Store<br/>+ Vector DB
+
+    Note over U, DB: ━━━ PHASE 0: FILE UPLOAD & PARSING ━━━
+
+    U->>UI: Upload incumbent file (PDF/Excel/CSV)
+    UI->>Orch: POST /api/sessions/{sid}/files
+    Orch->>Tools: Parse file structure
+    Tools->>DB: Store parsed columns, samples, metadata
+    Tools-->>Orch: FileParseResult {columns[], provider?, reportType?}
+    Orch->>WS: FILE_PARSED event
+    WS-->>UI: Update source panel with column list
+
+    Note over U, DB: ━━━ PHASE 1: SURVEY & PLAN (Read-Heavy) ━━━
+
+    Orch->>CTX: Assemble survey context
+    Note right of CTX: Ring 1: System prompt + tool defs<br/>+ canonical table index (~2K tokens)<br/>Ring 3: All column headers<br/>+ file metadata (~3K tokens)
+    CTX-->>Orch: Assembled prompt (~5K tokens)
+    
+    Orch->>LLM: Survey prompt + tools
+    LLM->>Tools: inspect_source_file(file_id, sample_rows=3)
+    Tools->>DB: Fetch parsed structure
+    DB-->>Tools: ColumnMeta[] with samples
+    Tools-->>LLM: File structure + detected provider
+
+    LLM->>Tools: search_templates(provider, fund_type, report_type)
+    Tools->>DB: Query template store
+    DB-->>Tools: Matching templates ranked by confidence
+    Tools-->>LLM: Template[] with mapping summaries
+
+    LLM->>Tools: get_mapping_progress()
+    Tools->>DB: Query session state
+    Tools-->>LLM: {total: 85, mapped: 0, unmapped: 85}
+
+    LLM-->>Orch: MappingPlan {groups[], template_match?, strategy}
+    
+    Orch->>WS: PLAN_GENERATED event
+    WS-->>UI: Show mapping plan in AI panel
+
+    alt High-confidence template found (≥0.90)
+        Orch->>LLM: Apply template decision
+        LLM->>Tools: apply_template(template_id, skip_columns[])
+        Tools->>DB: Bulk create mapping proposals
+        Tools-->>LLM: {applied: 72, skipped: 3, auto_approved: 68, pending: 4}
+        Orch->>WS: BULK_MAPPINGS_APPLIED event
+        WS-->>UI: Render 72 mapping lines (green=approved, yellow=pending)
+    end
+
+    Note over U, DB: ━━━ PHASE 2: ITERATIVE MAPPING (Per Column) ━━━
+
+    loop For each unmapped column
+        Orch->>CTX: Assemble mapping context for column[i]
+        
+        Note right of CTX: Priority Assembly:<br/>P0: Session state (200 tokens)<br/>P1: Column header + 5 samples<br/>+ neighbors (800 tokens)<br/>P2: [pending retrieval]<br/>P3: Template precedent (1K tokens)<br/>P4: Validation rules (500 tokens)<br/>P5: Last 5 decisions (700 tokens)<br/>━━━━━━━━━━━━━━━━━━━━━<br/>Budget: 25K input tokens
+
+        CTX-->>Orch: Partial context (P0+P1+P3+P4+P5)
+        Orch->>LLM: Mapping prompt + tools
+
+        LLM->>Tools: analyze_column_samples(col_name, samples[])
+        Tools-->>LLM: {classification: CURRENCY_AMOUNT, sub: LOCAL_CURRENCY, confidence: 0.92}
+
+        LLM->>Tools: search_canonical_model(query, table_filter?)
+        Tools->>DB: Vector search + keyword match
+        DB-->>Tools: Top 5 field candidates with definitions
+        Tools-->>LLM: FieldMatch[] ranked by relevance
+
+        Note right of CTX: P2 now populated:<br/>Canonical candidates injected<br/>into active context (~3K tokens)
+
+        alt Agent needs xref lookup
+            LLM->>Tools: get_xref_lookup(sample_value, xref_type)
+            Tools->>DB: Query xref tables
+            Tools-->>LLM: {found: true, target_value: "..."}
+        end
+
+        alt Transformation needed
+            Note right of LLM: Agent generates CEL expression:<br/>cel: source.amount * xref.fx_rate
+        end
+
+        LLM->>Tools: validate_mapping(source_col, target_table, target_field, samples[])
+        Tools-->>LLM: {valid: true, checks: [...], precision_loss: false}
+
+        alt Validation passes + high confidence (≥0.85)
+            LLM->>Tools: propose_mapping(col, table, field, 0.92, reasoning)
+            Tools->>DB: Store mapping proposal
+            Tools-->>LLM: {mapping_id, status: PENDING_REVIEW}
+            Orch->>WS: MAPPING_PROPOSED event
+            WS-->>UI: Draw mapping line (source → target) with confidence badge
+        else Validation fails or low confidence
+            LLM->>Tools: flag_for_review(col, reason, suggested_options[])
+            Tools->>DB: Create review task
+            Tools-->>LLM: {flag_id, queue_position: 3}
+            Orch->>WS: COLUMN_FLAGGED event
+            WS-->>UI: Highlight column yellow with "Needs Review" badge
+        end
+    end
+
+    Note over U, DB: ━━━ PHASE 3: HUMAN REVIEW & FINALIZATION ━━━
+
+    U->>UI: Open review queue
+    UI->>Orch: GET /api/sessions/{sid}/review-queue
+
+    loop For each pending/flagged item
+        UI-->>U: Show mapping with agent reasoning + confidence
+        
+        alt User approves
+            U->>UI: Click "Approve"
+            UI->>Orch: PATCH /api/mappings/{id} {status: APPROVED}
+            Orch->>DB: Update mapping status
+            Orch->>WS: MAPPING_APPROVED event
+            WS-->>UI: Turn mapping line green
+        else User modifies
+            U->>UI: Select different target field
+            UI->>Orch: PATCH /api/mappings/{id} {target_field: new_field}
+            Orch->>DB: Update mapping + log modification
+            Orch->>WS: MAPPING_MODIFIED event
+            WS-->>UI: Update mapping line with new target
+            Note right of Orch: Modification feeds back to<br/>agent context for pattern learning
+        else User rejects
+            U->>UI: Click "Reject" + provide reason
+            UI->>Orch: PATCH /api/mappings/{id} {status: REJECTED, reason}
+            Orch->>DB: Update + log rejection
+            Orch->>WS: MAPPING_REJECTED event
+            WS-->>UI: Remove mapping line, return to unmapped
+        end
+    end
+
+    Note over U, DB: ━━━ PHASE 4: TEMPLATE SAVE & EXPORT ━━━
+
+    U->>UI: Click "Save as Template"
+    UI->>Orch: POST /api/templates
+    Orch->>DB: Store approved mappings as reusable template
+    Orch-->>UI: Template saved (template_id)
+
+    U->>UI: Click "Export to ReconClare"
+    UI->>Orch: POST /api/sessions/{sid}/export
+    Orch->>Tools: Generate CEL matching rules from approved mappings
+    Tools-->>Orch: ReconClare configuration bundle
+    Orch-->>UI: Download CEL rule configuration

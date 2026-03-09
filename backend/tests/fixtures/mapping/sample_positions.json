@@ -1,0 +1,42 @@
+[
+  {
+    "Account": "VGD-500",
+    "CUSIP": "922908363",
+    "Security_Name": "Vanguard S&P 500 ETF",
+    "Quantity": "125000",
+    "Market_Value": "56250000.00",
+    "Book_Value": "48750000.00",
+    "Price": "450.00",
+    "Val_Date": "2026-03-09"
+  },
+  {
+    "Account": "VGD-500",
+    "CUSIP": "037833100",
+    "Security_Name": "Apple Inc",
+    "Quantity": "50000",
+    "Market_Value": "8750000.00",
+    "Book_Value": "7500000.00",
+    "Price": "175.00",
+    "Val_Date": "2026-03-09"
+  },
+  {
+    "Account": "FID-CONTRA",
+    "CUSIP": "594918104",
+    "Security_Name": "Microsoft Corp",
+    "Quantity": "30000",
+    "Market_Value": "12600000.00",
+    "Book_Value": "10200000.00",
+    "Price": "420.00",
+    "Val_Date": "2026-03-09"
+  },
+  {
+    "Account": "FID-CONTRA",
+    "CUSIP": "023135106",
+    "Security_Name": "Amazon.com Inc",
+    "Quantity": "25000",
+    "Market_Value": "4375000.00",
+    "Book_Value": "3250000.00",
+    "Price": "175.00",
+    "Val_Date": "2026-03-09"
+  }
+]

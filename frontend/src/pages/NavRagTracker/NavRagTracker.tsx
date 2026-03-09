@@ -8,12 +8,19 @@ import {
   CircularProgress,
   Divider,
   Alert,
+  ToggleButtonGroup,
+  ToggleButton,
 } from '@mui/material';
+import GridOnIcon from '@mui/icons-material/GridOn';
+import TableChartIcon from '@mui/icons-material/TableChart';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ColDef } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 
+import NavSubViewNav from '../../components/shared/NavSubViewNav';
+import NavKpiCards, { NavKpiData } from '../../components/shared/NavKpiCards';
+import RagHeatmap from '../../components/shared/RagHeatmap';
 import { useAuth } from '../../context/AuthContext';
 import { canOverrideKD } from '../../config/permissions';
 import { fetchRagTracker } from '../../services/api';
@@ -78,16 +85,32 @@ export default function NavRagTracker() {
   const [data, setData] = useState<RagTrackerData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'heatmap' | 'grid'>('heatmap');
 
   // ── Data Fetch ─────────────────────────────────────────
 
   const normalizeResult = useCallback((result: any): RagTrackerData => {
     if (Array.isArray(result)) {
+      // Flat array format: each row has fund, fundName, and date keys
       const allKeys = result.length > 0 ? Object.keys(result[0]) : [];
       const dates = allKeys.filter((k) => k !== 'fund' && k !== 'fundName');
       return { funds: result as RagFundRow[], dates };
     }
-    return result as RagTrackerData;
+    // Object format from backend: { funds: [{fundAccount, fundName, dates: {dt: bp}}], dates: [...] }
+    const dates: string[] = result.dates || [];
+    const funds: RagFundRow[] = (result.funds || []).map((f: any) => {
+      const row: any = {
+        fund: f.fundAccount || f.fund || '',
+        fundName: f.fundName || '',
+      };
+      // Flatten nested dates object into row-level keys
+      const datesObj = f.dates || {};
+      for (const dt of dates) {
+        row[dt] = datesObj[dt] ?? f[dt] ?? null;
+      }
+      return row as RagFundRow;
+    });
+    return { funds, dates };
   }, []);
 
   useEffect(() => {
@@ -176,11 +199,49 @@ export default function NavRagTracker() {
     return {
       totalFunds,
       totalDates,
+      greenCount,
+      amberCount,
+      redCount,
       greenPct: totalCells > 0 ? Math.round((greenCount / totalCells) * 100) : 0,
       amberPct: totalCells > 0 ? Math.round((amberCount / totalCells) * 100) : 0,
       redPct: totalCells > 0 ? Math.round((redCount / totalCells) * 100) : 0,
     };
   }, [data]);
+
+  const kpiData: NavKpiData = useMemo(() => {
+    if (!data) {
+      return { totalVariance: 0, totalVarianceBP: 0, greenCount: 0, amberCount: 0, redCount: 0, totalItems: 0, itemLabel: 'Cells' };
+    }
+    // For RAG tracker, total variance is the latest date's aggregate
+    const latestDate = data.dates.length > 0 ? data.dates[data.dates.length - 1] : '';
+    let latestBP = 0;
+    let largestBP = 0;
+    let largestName = '';
+    data.funds.forEach((fund) => {
+      if (latestDate) {
+        const val = fund[latestDate] as number;
+        if (val != null) latestBP += val;
+      }
+      // Find largest break across all dates
+      data.dates.forEach((dt) => {
+        const val = fund[dt] as number;
+        if (val != null && Math.abs(val) > Math.abs(largestBP)) {
+          largestBP = val;
+          largestName = fund.fundName || fund.fund;
+        }
+      });
+    });
+    return {
+      totalVariance: 0,
+      totalVarianceBP: latestBP / (data.funds.length || 1),
+      greenCount: summaryStats.greenCount || 0,
+      amberCount: summaryStats.amberCount || 0,
+      redCount: summaryStats.redCount || 0,
+      totalItems: summaryStats.totalFunds * summaryStats.totalDates,
+      itemLabel: 'Cells',
+      largestBreak: largestName ? { name: largestName, bpValue: largestBP } : undefined,
+    };
+  }, [data, summaryStats]);
 
   // ── Render ────────────────────────────────────────────────
 
@@ -215,8 +276,14 @@ export default function NavRagTracker() {
         </Stack>
       </Paper>
 
-      {/* RAG Legend */}
-      <Paper sx={{ p: 1.5, mb: 2 }} elevation={0} variant="outlined">
+      {/* NAV Sub-View Navigation */}
+      <NavSubViewNav currentView="rag-tracker" />
+
+      {/* KPI Summary Cards */}
+      {!loading && data && data.funds.length > 0 && <NavKpiCards data={kpiData} />}
+
+      {/* RAG Legend + View Toggle */}
+      <Paper sx={{ p: 1.5, mb: 1.5 }} elevation={0} variant="outlined">
         <Stack direction="row" spacing={3} alignItems="center">
           <Typography variant="caption" fontWeight={600}>RAG Legend (Adjusted BP):</Typography>
           <Stack direction="row" spacing={0.5} alignItems="center">
@@ -231,6 +298,23 @@ export default function NavRagTracker() {
             <Box sx={{ width: 16, height: 16, bgcolor: RAG_RED, borderRadius: 0.5, border: '1px solid #ccc' }} />
             <Typography variant="caption">|BP| &gt; 50 (Red)</Typography>
           </Stack>
+          <Box sx={{ ml: 'auto' }}>
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={(_, v) => { if (v) setViewMode(v); }}
+              size="small"
+            >
+              <ToggleButton value="heatmap" sx={{ py: 0.25, px: 1 }}>
+                <GridOnIcon sx={{ fontSize: 16, mr: 0.5 }} />
+                <Typography variant="caption">Heatmap</Typography>
+              </ToggleButton>
+              <ToggleButton value="grid" sx={{ py: 0.25, px: 1 }}>
+                <TableChartIcon sx={{ fontSize: 16, mr: 0.5 }} />
+                <Typography variant="caption">Table</Typography>
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
         </Stack>
       </Paper>
 
@@ -241,37 +325,47 @@ export default function NavRagTracker() {
         </Alert>
       )}
 
-      {/* RAG Matrix Grid */}
-      <Box sx={{ flex: 1, minHeight: 300 }} role="region" aria-label="RAG tracker matrix grid">
+      {/* RAG Matrix — Heatmap or Grid */}
+      <Box sx={{ flex: 1, minHeight: 300 }} role="region" aria-label="RAG tracker matrix">
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
             <CircularProgress aria-label="Loading RAG tracker data" />
           </Box>
         ) : data && data.funds.length > 0 ? (
-          <Box
-            className="ag-theme-alpine"
-            sx={{
-              height: '100%',
-              width: '100%',
-              '& .ag-cell:focus-within': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 },
-            }}
-          >
-            <AgGridReact<RagFundRow>
-              modules={[AllCommunityModule]}
-              theme="legacy"
-              rowData={data.funds}
-              columnDefs={columnDefs}
-              defaultColDef={defaultColDef}
-              animateRows
-              getRowId={(params) => params.data.fund}
-              onCellClicked={(e) => {
-                if (e.colDef.field && e.colDef.field !== 'fund' && e.colDef.field !== 'fundName') {
-                  const dateStr = e.colDef.field;
-                  navigate(`/events/${eventId}/nav-dashboard/scorecard?valuationDt=${dateStr}`);
-                }
+          viewMode === 'heatmap' ? (
+            <RagHeatmap
+              funds={data.funds}
+              dates={data.dates}
+              onCellClick={(_fund, _fundName, date) => {
+                navigate(`/events/${eventId}/nav-dashboard/scorecard?valuationDt=${date}`);
               }}
             />
-          </Box>
+          ) : (
+            <Box
+              className="ag-theme-alpine"
+              sx={{
+                height: '100%',
+                width: '100%',
+                '& .ag-cell:focus-within': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 },
+              }}
+            >
+              <AgGridReact<RagFundRow>
+                modules={[AllCommunityModule]}
+                theme="legacy"
+                rowData={data.funds}
+                columnDefs={columnDefs}
+                defaultColDef={defaultColDef}
+                animateRows
+                getRowId={(params) => params.data.fund}
+                onCellClicked={(e) => {
+                  if (e.colDef.field && e.colDef.field !== 'fund' && e.colDef.field !== 'fundName') {
+                    const dateStr = e.colDef.field;
+                    navigate(`/events/${eventId}/nav-dashboard/scorecard?valuationDt=${dateStr}`);
+                  }
+                }}
+              />
+            </Box>
+          )
         ) : (
           <Paper sx={{ p: 4, textAlign: 'center', bgcolor: 'background.default' }} elevation={0}>
             <Typography variant="body1" color="text.secondary">

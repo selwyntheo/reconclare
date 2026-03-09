@@ -24,6 +24,22 @@ import {
   TransClassification,
   LedgerCategoryDerivation,
 } from '../types';
+import type {
+  MappingDefinition,
+  MappingValidateResponse,
+  PreviewResponse,
+  SchemaInferResponse,
+  CelFunctionDoc,
+  AiFieldMapping,
+  LookupTableMeta,
+  MappingJob,
+  FieldMapping,
+  FilterExpression,
+  SourceConfig,
+  TargetConfig,
+  ErrorHandling,
+  FieldSchema,
+} from '../types/mapping';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
@@ -532,6 +548,10 @@ export async function fetchReviewers() {
 
 // ── NAV Views ────────────────────────────────────────────────
 
+export async function fetchShareClassDashboard(eventId: string, valuationDt: string) {
+  return fetchJSON<any[]>(`/api/events/${eventId}/share-class-dashboard?valuationDt=${valuationDt}`);
+}
+
 export async function fetchShareClasses(eventId: string, account: string, valuationDt: string) {
   return fetchJSON<any[]>(`/api/events/${eventId}/funds/${account}/share-classes?valuationDt=${valuationDt}`);
 }
@@ -709,4 +729,269 @@ export async function fetchAuditLogs(eventId: string, params?: { action?: string
 
 export async function healthCheck() {
   return fetchJSON<{ status: string; timestamp: string }>('/api/health');
+}
+
+// ══════════════════════════════════════════════════════════════
+// DATA MAPPING UTILITY ENDPOINTS
+// ══════════════════════════════════════════════════════════════
+
+// ── Mapping CRUD ────────────────────────────────────────────
+
+export async function fetchMappings(params?: { status?: string; tags?: string; search?: string; skip?: number; limit?: number }) {
+  const sp = new URLSearchParams();
+  if (params?.status) sp.set('status', params.status);
+  if (params?.tags) sp.set('tags', params.tags);
+  if (params?.search) sp.set('search', params.search);
+  if (params?.skip) sp.set('skip', String(params.skip));
+  if (params?.limit) sp.set('limit', String(params.limit));
+  const qs = sp.toString();
+  return fetchJSON<{ items: MappingDefinition[]; total: number }>(`/api/v1/mappings${qs ? `?${qs}` : ''}`);
+}
+
+export async function fetchMapping(mappingId: string) {
+  return fetchJSON<MappingDefinition>(`/api/v1/mappings/${mappingId}`);
+}
+
+export async function createMapping(data: {
+  name: string;
+  description?: string;
+  tags?: string[];
+  source: SourceConfig;
+  target: TargetConfig;
+  fieldMappings: FieldMapping[];
+  filters?: FilterExpression[];
+  errorHandling?: ErrorHandling;
+}) {
+  return fetchJSON<MappingDefinition>('/api/v1/mappings', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateMapping(mappingId: string, data: Record<string, unknown>) {
+  return fetchJSON<MappingDefinition>(`/api/v1/mappings/${mappingId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteMapping(mappingId: string) {
+  return fetchJSON<void>(`/api/v1/mappings/${mappingId}`, { method: 'DELETE' });
+}
+
+export async function cloneMapping(mappingId: string) {
+  return fetchJSON<MappingDefinition>(`/api/v1/mappings/${mappingId}/clone`, { method: 'POST' });
+}
+
+export async function approveMapping(mappingId: string, reviewer: string) {
+  return fetchJSON<{ mappingId: string; status: string }>(`/api/v1/mappings/${mappingId}/approve?reviewer=${encodeURIComponent(reviewer)}`, { method: 'PUT' });
+}
+
+// ── Mapping Validation & Preview ────────────────────────────
+
+export async function validateMapping(data: {
+  name: string;
+  source: SourceConfig;
+  target: TargetConfig;
+  fieldMappings: FieldMapping[];
+  filters?: FilterExpression[];
+  errorHandling?: ErrorHandling;
+}) {
+  return fetchJSON<MappingValidateResponse>('/api/v1/mappings/validate', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function previewMapping(data: {
+  mapping: {
+    name: string;
+    source: SourceConfig;
+    target: TargetConfig;
+    fieldMappings: FieldMapping[];
+    filters?: FilterExpression[];
+    errorHandling?: ErrorHandling;
+  };
+  sampleData: Record<string, unknown>[];
+  params?: Record<string, unknown>;
+}) {
+  return fetchJSON<PreviewResponse>('/api/v1/mappings/preview', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function inferSchema(file: File): Promise<SchemaInferResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await fetch(`${API_BASE}/api/v1/mappings/infer-schema`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!response.ok) throw new Error(`Schema inference failed: ${response.status}`);
+  return response.json();
+}
+
+// ── Read Sample Rows ────────────────────────────────────────
+
+export async function readSampleRows(file: File, rows = 10): Promise<{ rows: Record<string, unknown>[]; totalRows: number; format: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await fetch(`${API_BASE}/api/v1/mappings/read-sample?rows=${rows}`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!response.ok) throw new Error(`Read sample failed: ${response.status}`);
+  return response.json();
+}
+
+// ── AI Auto-Generate Mapping ────────────────────────────────
+
+export interface AiGenerateResult {
+  name: string;
+  description: string;
+  source: SourceConfig;
+  target: TargetConfig;
+  fieldMappings: FieldMapping[];
+  aiResult: {
+    mappings: AiFieldMapping[];
+    generatedAt: string;
+  };
+  sourceStats: {
+    totalRows: number;
+    sampleRows: Record<string, unknown>[];
+    fieldsInferred: number;
+  };
+  targetStats: {
+    fieldsInferred: number;
+    sampleRows: Record<string, unknown>[];
+  };
+}
+
+export async function aiGenerateMapping(
+  sourceFile: File,
+  targetFile?: File,
+  targetSchemaJson?: string,
+  mappingName?: string,
+  lookupTables?: string,
+): Promise<AiGenerateResult> {
+  const formData = new FormData();
+  formData.append('source_file', sourceFile);
+  if (targetFile) formData.append('target_file', targetFile);
+  if (targetSchemaJson) formData.append('target_schema_json', targetSchemaJson);
+  if (mappingName) formData.append('mapping_name', mappingName);
+  if (lookupTables) formData.append('lookup_tables', lookupTables);
+  const response = await fetch(`${API_BASE}/api/v1/mappings/ai-generate`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`AI generation failed: ${response.status} — ${text}`);
+  }
+  return response.json();
+}
+
+// ── Mapping Execution ───────────────────────────────────────
+
+export async function executeMapping(mappingId: string, file: File, params?: Record<string, unknown>) {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (params) formData.append('params', JSON.stringify(params));
+  const response = await fetch(`${API_BASE}/api/v1/mappings/${mappingId}/execute`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!response.ok) throw new Error(`Execution failed: ${response.status}`);
+  return response.json();
+}
+
+export async function executeMappingAsync(mappingId: string, file: File, params?: Record<string, unknown>) {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (params) formData.append('params', JSON.stringify(params));
+  const response = await fetch(`${API_BASE}/api/v1/mappings/${mappingId}/execute-async`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!response.ok) throw new Error(`Async execution failed: ${response.status}`);
+  return response.json();
+}
+
+// ── Job Endpoints ───────────────────────────────────────────
+
+export async function fetchMappingJob(jobId: string) {
+  return fetchJSON<MappingJob>(`/api/v1/jobs/${jobId}`);
+}
+
+export async function fetchJobErrors(jobId: string, skip = 0, limit = 100) {
+  return fetchJSON<{ errors: unknown[]; total: number }>(`/api/v1/jobs/${jobId}/errors?skip=${skip}&limit=${limit}`);
+}
+
+export async function downloadJobOutput(jobId: string) {
+  const response = await fetch(`${API_BASE}/api/v1/jobs/${jobId}/output`);
+  if (!response.ok) throw new Error(`Download failed: ${response.status}`);
+  return response.blob();
+}
+
+export async function cancelJob(jobId: string) {
+  return fetchJSON<{ jobId: string; status: string }>(`/api/v1/jobs/${jobId}`, { method: 'DELETE' });
+}
+
+// ── CEL Utility Endpoints ───────────────────────────────────
+
+export async function validateCel(expression: string, sourceSchema?: FieldSchema[]) {
+  return fetchJSON<{ valid: boolean; error?: string }>('/api/v1/cel/validate', {
+    method: 'POST',
+    body: JSON.stringify({ expression, sourceSchema }),
+  });
+}
+
+export async function evaluateCel(expression: string, data: Record<string, unknown>, params?: Record<string, unknown>) {
+  return fetchJSON<{ result: unknown; resultType: string; error?: string }>('/api/v1/cel/evaluate', {
+    method: 'POST',
+    body: JSON.stringify({ expression, data, params }),
+  });
+}
+
+export async function fetchCelFunctions() {
+  return fetchJSON<CelFunctionDoc[]>('/api/v1/cel/functions');
+}
+
+export async function suggestCel(data: {
+  targetField: string;
+  targetType: string;
+  sourceSchema: FieldSchema[];
+  sampleData?: Record<string, unknown>[];
+  existingMappings?: FieldMapping[];
+  lookupTables?: string[];
+}) {
+  return fetchJSON<AiFieldMapping>('/api/v1/cel/suggest', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+// ── Lookup Table Endpoints ──────────────────────────────────
+
+export async function fetchLookupTables() {
+  return fetchJSON<LookupTableMeta[]>('/api/v1/lookups');
+}
+
+export async function uploadLookupTable(file: File, name: string, keyField: string, description?: string) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('name', name);
+  formData.append('keyField', keyField);
+  if (description) formData.append('description', description);
+  const response = await fetch(`${API_BASE}/api/v1/lookups`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!response.ok) throw new Error(`Upload failed: ${response.status}`);
+  return response.json();
+}
+
+export async function deleteLookupTable(tableId: string) {
+  return fetchJSON<void>(`/api/v1/lookups/${tableId}`, { method: 'DELETE' });
 }

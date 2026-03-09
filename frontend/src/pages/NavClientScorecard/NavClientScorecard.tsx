@@ -25,6 +25,8 @@ import {
   updateScorecardOverrides,
   fetchCommentaryRollup,
 } from '../../services/api';
+import NavSubViewNav from '../../components/shared/NavSubViewNav';
+import NavKpiCards, { NavKpiData } from '../../components/shared/NavKpiCards';
 import ExportButton from '../../components/shared/ExportButton';
 
 // ── Types ──────────────────────────────────────────────────
@@ -114,7 +116,9 @@ export default function NavClientScorecard() {
       fetchKnownDifferences(eventId, true),
     ])
       .then(([scorecardData, kdData]) => {
-        setRows(scorecardData as ScorecardRow[]);
+        // Backend returns { knownDifferences, rows } or a plain array
+        const result = scorecardData as any;
+        setRows(Array.isArray(result) ? result : (result.rows || []));
         setKnownDifferences(kdData as KnownDifference[]);
       })
       .catch((err) => {
@@ -349,6 +353,25 @@ export default function NavClientScorecard() {
     return { total, greenCount, amberCount, redCount, signedOff };
   }, [enrichedRows]);
 
+  const kpiData: NavKpiData = useMemo(() => {
+    const totalVariance = enrichedRows.reduce((s, r) => s + (r.adjustedDifference || 0), 0);
+    const totalInc = enrichedRows.reduce((s, r) => s + (r.incumbentNetAssets || 0), 0);
+    const totalVarianceBP = totalInc !== 0 ? (totalVariance / totalInc) * 10000 : 0;
+    const sorted = [...enrichedRows].sort((a, b) => Math.abs(b.adjustedDifferenceBP) - Math.abs(a.adjustedDifferenceBP));
+    const largest = sorted[0];
+    return {
+      totalVariance,
+      totalVarianceBP,
+      greenCount: summaryStats.greenCount,
+      amberCount: summaryStats.amberCount,
+      redCount: summaryStats.redCount,
+      totalItems: summaryStats.total,
+      itemLabel: 'Funds',
+      largestBreak: largest ? { name: largest.fundName || largest.fund, bpValue: largest.adjustedDifferenceBP } : undefined,
+      reviewProgress: { completed: summaryStats.signedOff, total: summaryStats.total },
+    };
+  }, [enrichedRows, summaryStats]);
+
   // ── Render ────────────────────────────────────────────────
 
   return (
@@ -380,6 +403,12 @@ export default function NavClientScorecard() {
           </Box>
         </Stack>
       </Paper>
+
+      {/* NAV Sub-View Navigation */}
+      <NavSubViewNav currentView="scorecard" />
+
+      {/* KPI Summary Cards */}
+      {!loading && enrichedRows.length > 0 && <NavKpiCards data={kpiData} />}
 
       {/* Error State */}
       {error && (

@@ -16,6 +16,7 @@ from .commentary import router as commentary_router
 from .notifications import router as notifications_router
 from .export import router as export_router
 from .audit import router as audit_router
+from .mapping import router as mapping_router
 
 all_routers: list[APIRouter] = [
     allocations_router,
@@ -29,4 +30,5 @@ all_routers: list[APIRouter] = [
     notifications_router,
     export_router,
     audit_router,
+    mapping_router,
 ]
