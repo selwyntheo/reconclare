@@ -1,0 +1,211 @@
+[
+  {
+    "portfolio_id": "PF-VGD-500",
+    "portfolio_name": "Vanguard S&P 500 Fund",
+    "custodian": "STATE_STREET",
+    "base_currency": "USD",
+    "valuation_date": "2026-03-09",
+    "manager": {
+      "name": "Jane Chen",
+      "team": "Equity Core",
+      "region": "US"
+    },
+    "nav_summary": {
+      "total_net_assets": 1234567890.12,
+      "shares_outstanding": 45678901.234,
+      "nav_per_share": 27.03,
+      "prior_nav_per_share": 26.98,
+      "daily_change_pct": 0.185
+    },
+    "holdings": [
+      {
+        "asset_id": "037833100",
+        "ticker": "AAPL",
+        "description": "Apple Inc",
+        "asset_class": "EQUITY",
+        "sector": "Technology",
+        "position": {
+          "quantity": 125000,
+          "market_value": 22187500.00,
+          "book_cost": 19500000.00,
+          "price": 177.50,
+          "price_source": "BLOOMBERG",
+          "weight_pct": 1.797
+        },
+        "income": {
+          "accrued_income": 31250.00,
+          "last_dividend": {
+            "ex_date": "2026-02-14",
+            "rate_per_share": 0.25,
+            "pay_date": "2026-02-20",
+            "currency": "USD"
+          }
+        },
+        "risk": {
+          "beta": 1.21,
+          "volatility_30d": 0.243,
+          "var_95": -485000.00
+        }
+      },
+      {
+        "asset_id": "594918104",
+        "ticker": "MSFT",
+        "description": "Microsoft Corp",
+        "asset_class": "EQUITY",
+        "sector": "Technology",
+        "position": {
+          "quantity": 85000,
+          "market_value": 35870000.00,
+          "book_cost": 28500000.00,
+          "price": 422.00,
+          "price_source": "BLOOMBERG",
+          "weight_pct": 2.906
+        },
+        "income": {
+          "accrued_income": 0.00,
+          "last_dividend": {
+            "ex_date": "2026-02-20",
+            "rate_per_share": 0.75,
+            "pay_date": "2026-03-13",
+            "currency": "USD"
+          }
+        },
+        "risk": {
+          "beta": 0.95,
+          "volatility_30d": 0.198,
+          "var_95": -612000.00
+        }
+      },
+      {
+        "asset_id": "912810SZ1",
+        "ticker": null,
+        "description": "US Treasury 4.25% 2035",
+        "asset_class": "FIXED_INCOME",
+        "sector": "Government",
+        "position": {
+          "quantity": 5000000,
+          "market_value": 4875000.00,
+          "book_cost": 5000000.00,
+          "price": 97.50,
+          "price_source": "ICE",
+          "weight_pct": 0.395
+        },
+        "income": {
+          "accrued_income": 42500.00,
+          "last_dividend": null
+        },
+        "risk": {
+          "beta": null,
+          "volatility_30d": 0.045,
+          "var_95": -95000.00
+        }
+      }
+    ],
+    "cash_balances": [
+      {"currency": "USD", "amount": 45320100.50, "account_type": "OPERATING"},
+      {"currency": "EUR", "amount": 1250000.00, "account_type": "SETTLEMENT"},
+      {"currency": "GBP", "amount": 875000.00, "account_type": "SETTLEMENT"}
+    ],
+    "compliance": {
+      "breaches": [],
+      "concentration_limits": {
+        "single_issuer_max_pct": 10.0,
+        "sector_max_pct": 25.0,
+        "current_largest_issuer_pct": 2.906
+      }
+    }
+  },
+  {
+    "portfolio_id": "PF-FID-CONTRA",
+    "portfolio_name": "Fidelity Contrafund",
+    "custodian": "BNY_MELLON",
+    "base_currency": "USD",
+    "valuation_date": "2026-03-09",
+    "manager": {
+      "name": "Robert Park",
+      "team": "Growth Equity",
+      "region": "US"
+    },
+    "nav_summary": {
+      "total_net_assets": 2345678901.23,
+      "shares_outstanding": 78901234.567,
+      "nav_per_share": 29.73,
+      "prior_nav_per_share": 29.81,
+      "daily_change_pct": -0.268
+    },
+    "holdings": [
+      {
+        "asset_id": "023135106",
+        "ticker": "AMZN",
+        "description": "Amazon.com Inc",
+        "asset_class": "EQUITY",
+        "sector": "Consumer Discretionary",
+        "position": {
+          "quantity": 45000,
+          "market_value": 7965000.00,
+          "book_cost": 6200000.00,
+          "price": 177.00,
+          "price_source": "BLOOMBERG",
+          "weight_pct": 0.340
+        },
+        "income": {
+          "accrued_income": 0.00,
+          "last_dividend": {
+            "ex_date": "2026-02-28",
+            "rate_per_share": 0.20,
+            "pay_date": "2026-03-14",
+            "currency": "USD"
+          }
+        },
+        "risk": {
+          "beta": 1.35,
+          "volatility_30d": 0.312,
+          "var_95": -720000.00
+        }
+      },
+      {
+        "asset_id": "88160R101",
+        "ticker": "TSLA",
+        "description": "Tesla Inc",
+        "asset_class": "EQUITY",
+        "sector": "Consumer Discretionary",
+        "position": {
+          "quantity": 30000,
+          "market_value": 7374000.00,
+          "book_cost": 9100000.00,
+          "price": 245.80,
+          "price_source": "BLOOMBERG",
+          "weight_pct": 0.314
+        },
+        "income": {
+          "accrued_income": 0.00,
+          "last_dividend": null
+        },
+        "risk": {
+          "beta": 1.89,
+          "volatility_30d": 0.521,
+          "var_95": -1250000.00
+        }
+      }
+    ],
+    "cash_balances": [
+      {"currency": "USD", "amount": 98760000.00, "account_type": "OPERATING"},
+      {"currency": "JPY", "amount": 250000000, "account_type": "SETTLEMENT"}
+    ],
+    "compliance": {
+      "breaches": [
+        {
+          "rule": "SECTOR_CONCENTRATION",
+          "detail": "Consumer Discretionary at 26.3% exceeds 25% limit",
+          "severity": "WARNING",
+          "timestamp": "2026-03-09T14:30:00Z"
+        }
+      ],
+      "concentration_limits": {
+        "single_issuer_max_pct": 10.0,
+        "sector_max_pct": 25.0,
+        "current_largest_issuer_pct": 0.340
+      }
+    }
+  }
+]

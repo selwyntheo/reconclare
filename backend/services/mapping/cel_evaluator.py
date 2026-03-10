@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import celpy
 from celpy import celtypes
+from celpy.evaluation import CELEvalError
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +71,13 @@ def cel_to_python(value: Any) -> Any:
         return [cel_to_python(v) for v in value]
     if isinstance(value, celtypes.MapType):
         return {cel_to_python(k): cel_to_python(v) for k, v in value.items()}
-    return value
+    if isinstance(value, CELEvalError):
+        raise value
+    # Python native types (int, float, str, bool, dict, list) pass through
+    if isinstance(value, (int, float, str, bool, dict, list)):
+        return value
+    # Fallback: convert to string to avoid serialization errors
+    return str(value)
 
 
 # ── Date Format Mapping (Java patterns → Python strftime) ─────────
@@ -480,6 +487,8 @@ class CelEvaluator:
             "lookups": python_to_cel(lookups or {}),
         }
         result = program.evaluate(activation)
+        if isinstance(result, CELEvalError):
+            raise result
         return cel_to_python(result)
 
     def validate_expression(self, expression: str) -> Tuple[bool, Optional[str]]:

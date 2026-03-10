@@ -1,0 +1,220 @@
+[
+  {
+    "fundCode": "PF-VGD-500",
+    "fundName": "Vanguard S&P 500 Fund",
+    "valuationDt": "2026-03-09",
+    "baseCcy": "USD",
+    "sourceSystem": "STATE_STREET",
+    "portfolioManager": "Jane Chen / Equity Core (US)",
+    "navData": {
+      "tna": 1234567890.12,
+      "sharesOut": 45678901.234,
+      "navPS": 27.03,
+      "priorNAVPS": 26.98,
+      "dailyReturn": 0.00185
+    },
+    "positions": [
+      {
+        "securityId": "037833100",
+        "symbol": "AAPL",
+        "securityName": "Apple Inc",
+        "classification": {
+          "assetClass": "EQ",
+          "sector": "TECH",
+          "region": "US"
+        },
+        "quantities": {
+          "shares": 125000,
+          "marketValue": 22187500.00,
+          "bookCost": 19500000.00,
+          "unrealizedGL": 2687500.00,
+          "unrealizedGLPct": 13.78,
+          "portfolioWeight": 1.797
+        },
+        "pricing": {
+          "currentPrice": 177.50,
+          "priceSource": "BBG"
+        },
+        "accruedIncome": 31250.00,
+        "dividendInfo": {
+          "exDate": "2026-02-14",
+          "ratePerShare": 0.25,
+          "payDate": "2026-02-20"
+        },
+        "riskMetrics": {
+          "beta": 1.21,
+          "vol30d": 24.3,
+          "valueAtRisk95": -485000.00
+        }
+      },
+      {
+        "securityId": "594918104",
+        "symbol": "MSFT",
+        "securityName": "Microsoft Corp",
+        "classification": {
+          "assetClass": "EQ",
+          "sector": "TECH",
+          "region": "US"
+        },
+        "quantities": {
+          "shares": 85000,
+          "marketValue": 35870000.00,
+          "bookCost": 28500000.00,
+          "unrealizedGL": 7370000.00,
+          "unrealizedGLPct": 25.86,
+          "portfolioWeight": 2.906
+        },
+        "pricing": {
+          "currentPrice": 422.00,
+          "priceSource": "BBG"
+        },
+        "accruedIncome": 0.00,
+        "dividendInfo": {
+          "exDate": "2026-02-20",
+          "ratePerShare": 0.75,
+          "payDate": "2026-03-13"
+        },
+        "riskMetrics": {
+          "beta": 0.95,
+          "vol30d": 19.8,
+          "valueAtRisk95": -612000.00
+        }
+      },
+      {
+        "securityId": "912810SZ1",
+        "symbol": "",
+        "securityName": "US Treasury 4.25% 2035",
+        "classification": {
+          "assetClass": "FI",
+          "sector": "GOVT",
+          "region": "US"
+        },
+        "quantities": {
+          "shares": 5000000,
+          "marketValue": 4875000.00,
+          "bookCost": 5000000.00,
+          "unrealizedGL": -125000.00,
+          "unrealizedGLPct": -2.50,
+          "portfolioWeight": 0.395
+        },
+        "pricing": {
+          "currentPrice": 97.50,
+          "priceSource": "ICE"
+        },
+        "accruedIncome": 42500.00,
+        "dividendInfo": null,
+        "riskMetrics": {
+          "beta": null,
+          "vol30d": 4.5,
+          "valueAtRisk95": -95000.00
+        }
+      }
+    ],
+    "cashSummary": {
+      "totalCashBase": 47445100.50,
+      "breakdown": [
+        {"ccy": "USD", "localAmount": 45320100.50, "type": "OPERATING"},
+        {"ccy": "EUR", "localAmount": 1250000.00, "type": "SETTLEMENT"},
+        {"ccy": "GBP", "localAmount": 875000.00, "type": "SETTLEMENT"}
+      ]
+    },
+    "complianceStatus": {
+      "breachCount": 0,
+      "hasActiveBreaches": false,
+      "maxIssuerPct": 2.906,
+      "maxSectorPct": null
+    }
+  },
+  {
+    "fundCode": "PF-FID-CONTRA",
+    "fundName": "Fidelity Contrafund",
+    "valuationDt": "2026-03-09",
+    "baseCcy": "USD",
+    "sourceSystem": "BNY_MELLON",
+    "portfolioManager": "Robert Park / Growth Equity (US)",
+    "navData": {
+      "tna": 2345678901.23,
+      "sharesOut": 78901234.567,
+      "navPS": 29.73,
+      "priorNAVPS": 29.81,
+      "dailyReturn": -0.00268
+    },
+    "positions": [
+      {
+        "securityId": "023135106",
+        "symbol": "AMZN",
+        "securityName": "Amazon.com Inc",
+        "classification": {
+          "assetClass": "EQ",
+          "sector": "CONS_DISC",
+          "region": "US"
+        },
+        "quantities": {
+          "shares": 45000,
+          "marketValue": 7965000.00,
+          "bookCost": 6200000.00,
+          "unrealizedGL": 1765000.00,
+          "unrealizedGLPct": 28.47,
+          "portfolioWeight": 0.340
+        },
+        "pricing": {
+          "currentPrice": 177.00,
+          "priceSource": "BBG"
+        },
+        "accruedIncome": 0.00,
+        "dividendInfo": {
+          "exDate": "2026-02-28",
+          "ratePerShare": 0.20,
+          "payDate": "2026-03-14"
+        },
+        "riskMetrics": {
+          "beta": 1.35,
+          "vol30d": 31.2,
+          "valueAtRisk95": -720000.00
+        }
+      },
+      {
+        "securityId": "88160R101",
+        "symbol": "TSLA",
+        "securityName": "Tesla Inc",
+        "classification": {
+          "assetClass": "EQ",
+          "sector": "CONS_DISC",
+          "region": "US"
+        },
+        "quantities": {
+          "shares": 30000,
+          "marketValue": 7374000.00,
+          "bookCost": 9100000.00,
+          "unrealizedGL": -1726000.00,
+          "unrealizedGLPct": -18.97,
+          "portfolioWeight": 0.314
+        },
+        "pricing": {
+          "currentPrice": 245.80,
+          "priceSource": "BBG"
+        },
+        "accruedIncome": 0.00,
+        "dividendInfo": null,
+        "riskMetrics": {
+          "beta": 1.89,
+          "vol30d": 52.1,
+          "valueAtRisk95": -1250000.00
+        }
+      }
+    ],
+    "cashSummary": {
+      "totalCashBase": 100410000.00,
+      "breakdown": [
+        {"ccy": "USD", "localAmount": 98760000.00, "type": "OPERATING"},
+        {"ccy": "JPY", "localAmount": 250000000, "type": "SETTLEMENT"}
+      ]
+    },
+    "complianceStatus": {
+      "breachCount": 1,
+      "hasActiveBreaches": true,
+      "maxIssuerPct": 0.340,
+      "maxSectorPct": 26.3
+    }
+  }
+]

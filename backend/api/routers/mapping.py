@@ -307,13 +307,25 @@ async def preview_mapping(req: PreviewRequest) -> PreviewResponse:
     engine = MappingEngine()
     results = engine.preview(mapping_def, req.sampleData, req.params)
 
+    def _sanitize(obj):
+        """Ensure all values are JSON-serializable."""
+        if obj is None:
+            return None
+        if isinstance(obj, (str, int, float, bool)):
+            return obj
+        if isinstance(obj, dict):
+            return {str(k): _sanitize(v) for k, v in obj.items()}
+        if isinstance(obj, (list, tuple)):
+            return [_sanitize(v) for v in obj]
+        return str(obj)
+
     rows = []
     filtered_count = 0
     error_count = 0
     for r in results:
         row = PreviewRow(
-            sourceRow=r["sourceRow"],
-            targetRow=r.get("targetRow"),
+            sourceRow=_sanitize(r["sourceRow"]),
+            targetRow=_sanitize(r.get("targetRow")),
             errors=r.get("errors", []),
             filtered=r.get("filtered", False),
         )
