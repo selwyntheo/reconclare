@@ -116,6 +116,22 @@ async def lifespan(app: FastAPI):
     await db[COLLECTIONS["mappingAuditLog"]].create_index(
         [("mappingId", 1), ("timestamp", -1)], background=True
     )
+    # MMIF Regulatory Filing indexes
+    await db[COLLECTIONS["mmifEvents"]].create_index(
+        [("status", 1), ("filingPeriod", 1)], background=True
+    )
+    await db[COLLECTIONS["mmifEvents"]].create_index(
+        "eventId", unique=True, background=True
+    )
+    await db[COLLECTIONS["mmifValidationRuns"]].create_index(
+        [("eventId", 1), ("filingPeriod", 1)], background=True
+    )
+    await db[COLLECTIONS["mmifBreakRecords"]].create_index(
+        [("eventId", 1), ("ruleId", 1)], background=True
+    )
+    await db[COLLECTIONS["mmifMappingConfigs"]].create_index(
+        [("eventId", 1), ("account", 1)], unique=True, background=True
+    )
     yield
     # Shutdown
     await close_async_db()

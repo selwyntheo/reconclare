@@ -25,6 +25,10 @@ const ValidationRunView = lazy(() => import('./pages/ValidationRunView/Validatio
 const DataMappingList = lazy(() => import('./pages/DataMapping/DataMappingList'));
 const DataMappingDesigner = lazy(() => import('./pages/DataMapping/DataMappingDesigner'));
 
+// MMIF Regulatory Filing — lazy-loaded
+const MmifDashboard = lazy(() => import('./pages/MmifDashboard/MmifDashboard'));
+const MmifReconciliation = lazy(() => import('./pages/MmifReconciliation/MmifReconciliation'));
+
 // Break Resolution & Dashboarding — lazy-loaded
 const ReviewerAllocation = lazy(() => import('./pages/ReviewerAllocation/ReviewerAllocation'));
 const NavShareClass = lazy(() => import('./pages/NavShareClass/NavShareClass'));
@@ -84,6 +88,11 @@ function App() {
               {/* Derivatives Sub-Views */}
               <Route path="events/:eventId/funds/:account/derivatives/forwards" element={<DrillDownProvider><ProtectedRoute screen="derivativesForwards"><DerivativesForwards /></ProtectedRoute></DrillDownProvider>} />
               <Route path="events/:eventId/funds/:account/derivatives/futures" element={<DrillDownProvider><ProtectedRoute screen="derivativesFutures"><DerivativesFutures /></ProtectedRoute></DrillDownProvider>} />
+
+              {/* MMIF Regulatory Filing routes */}
+              <Route path="mmif" element={<ProtectedRoute screen="mmifDashboard"><MmifDashboard /></ProtectedRoute>} />
+              <Route path="mmif/:eventId" element={<DrillDownProvider><ProtectedRoute screen="mmifReconciliation"><MmifReconciliation /></ProtectedRoute></DrillDownProvider>} />
+              <Route path="mmif/:eventId/funds/:account" element={<DrillDownProvider><ProtectedRoute screen="mmifReconciliation"><MmifReconciliation /></ProtectedRoute></DrillDownProvider>} />
 
               {/* Preserved routes */}
               <Route path="events/:eventId/runs/:runId" element={<ValidationRunView />} />

@@ -194,7 +194,7 @@ const MainLayout: React.FC = () => {
           <List>
             {navItems.map((item) => {
               const active = item.path === '/events'
-                ? location.pathname === '/events' || location.pathname === '/' || location.pathname.startsWith('/events/')
+                ? location.pathname === '/events' || location.pathname === '/' || location.pathname.startsWith('/events/') || location.pathname === '/mmif' || location.pathname.startsWith('/mmif/')
                 : location.pathname === item.path;
               return (
                 <ListItemButton

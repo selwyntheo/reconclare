@@ -17,6 +17,8 @@ from .notifications import router as notifications_router
 from .export import router as export_router
 from .audit import router as audit_router
 from .mapping import router as mapping_router
+from .mmif import router as mmif_router
+from .mmif_chat import router as mmif_chat_router
 
 all_routers: list[APIRouter] = [
     allocations_router,
@@ -31,4 +33,6 @@ all_routers: list[APIRouter] = [
     export_router,
     audit_router,
     mapping_router,
+    mmif_router,
+    mmif_chat_router,
 ]

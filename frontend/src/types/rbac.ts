@@ -5,7 +5,8 @@ export type AppRole =
   | 'RECON_LEAD'
   | 'AUDITOR'
   | 'NAV_OPS_ANALYST'
-  | 'CLIENT_STAKEHOLDER';
+  | 'CLIENT_STAKEHOLDER'
+  | 'FUND_ADMIN';
 
 export type PositionSubView =
   | 'full-portfolio'
@@ -50,6 +51,8 @@ export interface RolePermissions {
     derivativesForwards: ScreenAccess;
     derivativesFutures: ScreenAccess;
     dataMapping: ScreenAccess;
+    mmifDashboard: ScreenAccess;
+    mmifReconciliation: ScreenAccess;
   };
   positionSubViews: PositionSubView[];
   defaultPositionSubView: PositionSubView;

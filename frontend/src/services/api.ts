@@ -66,6 +66,71 @@ export async function fetchEvent(eventId: string) {
   return fetchJSON<any>(`/api/events/${eventId}`);
 }
 
+// ── MMIF Regulatory Filing Events ───────────────────────────
+
+export async function fetchMmifEvents(status?: string) {
+  const params = status && status !== 'ALL' ? `?status=${status}` : '';
+  return fetchJSON<any[]>(`/api/mmif/events${params}`);
+}
+
+export async function fetchMmifEvent(eventId: string) {
+  return fetchJSON<any>(`/api/mmif/events/${eventId}`);
+}
+
+export async function fetchMmifEventRuns(eventId: string) {
+  return fetchJSON<any[]>(`/api/mmif/events/${eventId}/runs`);
+}
+
+export async function fetchMmifEventBreaks(eventId: string, ruleId?: string) {
+  const params = ruleId ? `?rule_id=${ruleId}` : '';
+  return fetchJSON<any[]>(`/api/mmif/events/${eventId}/breaks${params}`);
+}
+
+export async function runMmifValidation(request: { eventId: string; filingPeriod: string; checkSuite: string[]; fundSelection?: string }) {
+  return fetchJSON<any>(`/api/mmif/events/${request.eventId}/validate`, {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+}
+
+export async function fetchMmifSummary(eventId: string) {
+  return fetchJSON<any>(`/api/mmif/events/${eventId}/summary`);
+}
+
+export async function fetchMmifMapping(eventId: string, account?: string) {
+  const params = account ? `?account=${account}` : '';
+  return fetchJSON<any[]>(`/api/mmif/events/${eventId}/mapping${params}`);
+}
+
+export async function fetchMmifValidationRules() {
+  return fetchJSON<any[]>('/api/mmif/validation-rules');
+}
+
+export async function fetchMmifCheckSuiteOptions() {
+  return fetchJSON<any[]>('/api/mmif/check-suite-options');
+}
+
+// MMIF Agent Analysis
+export async function runMmifAgentAnalysis(eventId: string) {
+  return fetchJSON<any>(`/api/mmif/events/${eventId}/analyze`, { method: 'POST' });
+}
+export async function fetchMmifAgentAnalysis(eventId: string) {
+  return fetchJSON<any>(`/api/mmif/events/${eventId}/agent-analysis`);
+}
+export async function fetchMmifAttestation(eventId: string) {
+  return fetchJSON<any>(`/api/mmif/events/${eventId}/attestation`);
+}
+// MMIF Chat
+export async function createMmifChatSession(eventId: string) {
+  return fetchJSON<any>(`/api/mmif-chat/session`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eventId }) });
+}
+export async function sendMmifChatMessage(sessionId: string, message: string) {
+  return fetchJSON<any>(`/api/mmif-chat/session/${sessionId}/message`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message }) });
+}
+export async function fetchMmifChatHistory(sessionId: string) {
+  return fetchJSON<any>(`/api/mmif-chat/session/${sessionId}/history`);
+}
+
 // ── Validation Checks ───────────────────────────────────────
 
 export async function fetchValidationChecks() {

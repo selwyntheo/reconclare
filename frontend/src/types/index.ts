@@ -4,9 +4,18 @@
 
 // ── Enums ────────────────────────────────────────────────────
 
+export type EventType = 'CONVERSION' | 'REGULATORY_FILING';
+
 export type EventStatus = 'DRAFT' | 'ACTIVE' | 'PARALLEL' | 'SIGNED_OFF' | 'COMPLETE';
 
 export type FundType = 'EQUITY' | 'FIXED_INCOME' | 'MULTI_ASSET' | 'MONEY_MARKET';
+
+// MMIF-specific enums
+export type MmifEventStatus = 'DRAFT' | 'MAPPING' | 'EXTRACTION' | 'RECONCILIATION' | 'REVIEW' | 'FILED';
+export type MmifFundType = 'UCITS' | 'AIF' | 'MMF' | 'HEDGE';
+export type MmifCheckType = 'VR_001' | 'VR_002' | 'VR_003' | 'VR_004' | 'VR_005' | 'VR_006' | 'VR_007' | 'VR_008' | 'VR_009' | 'VR_010' | 'VR_011' | 'VR_012' | 'VR_013' | 'VR_014' | 'VR_015';
+export type MmifSeverity = 'HARD' | 'SOFT' | 'DERIVED' | 'ADVISORY';
+export type FilingFrequency = 'MONTHLY' | 'QUARTERLY';
 
 export type FundStatus = 'PENDING' | 'IN_PARALLEL' | 'PASSED' | 'FAILED' | 'SIGNED_OFF';
 
@@ -38,12 +47,13 @@ export type ReviewAction = 'ACCEPT' | 'MODIFY' | 'REJECT';
 export interface TeamMember {
   userId: string;
   name: string;
-  role: 'CONVERSION_MANAGER' | 'FUND_ACCOUNTANT' | 'OPERATIONS_ANALYST' | 'AUDITOR';
+  role: 'CONVERSION_MANAGER' | 'FUND_ACCOUNTANT' | 'OPERATIONS_ANALYST' | 'AUDITOR' | 'FUND_ADMIN' | 'RECON_LEAD';
   avatar?: string;
 }
 
 export interface ConversionEvent {
   eventId: string;
+  eventType?: EventType;
   eventName: string;
   incumbentProvider: string;
   status: EventStatus;
@@ -54,6 +64,95 @@ export interface ConversionEvent {
   // UI-derived
   breakTrend7d?: number[];
 }
+
+// ── MMIF Regulatory Filing Types ────────────────────────────
+
+export interface MmifFund {
+  account: string;
+  fundName: string;
+  fundType: MmifFundType;
+  fundDomicile: string;
+  cbiCode?: string;
+  shareClasses: string[];
+  status: FundStatus;
+  lastRunTimestamp?: string;
+  breakCount?: number;
+}
+
+export interface MmifEvent {
+  eventId: string;
+  eventType: 'REGULATORY_FILING';
+  eventName: string;
+  regulatoryBody: string;
+  filingPeriod: string;
+  filingDeadline: string;
+  filingFrequency: FilingFrequency;
+  status: MmifEventStatus;
+  assignedTeam: TeamMember[];
+  funds: MmifFund[];
+  breakTrend7d?: number[];
+}
+
+export interface MmifValidationRule {
+  ruleId: string;
+  ruleName: string;
+  description: string;
+  severity: MmifSeverity;
+  tolerance: number;
+  mmifSection?: string;
+}
+
+export interface MmifValidationResult {
+  ruleId: string;
+  ruleName: string;
+  severity: MmifSeverity;
+  mmifSection?: string;
+  fundAccount: string;
+  fundName: string;
+  status: 'PASSED' | 'FAILED' | 'WARNING';
+  lhsLabel: string;
+  lhsValue: number;
+  rhsLabel: string;
+  rhsValue: number;
+  variance: number;
+  tolerance: number;
+  breakCount: number;
+}
+
+export interface MmifBreakRecord {
+  breakId: string;
+  validationRunId: string;
+  eventId: string;
+  ruleId: string;
+  ruleName: string;
+  severity: MmifSeverity;
+  mmifSection?: string;
+  fundAccount: string;
+  fundName: string;
+  lhsLabel: string;
+  lhsValue: number;
+  rhsLabel: string;
+  rhsValue: number;
+  variance: number;
+  tolerance: number;
+  state: BreakState;
+}
+
+export interface MmifSummary {
+  eventId: string;
+  eventName: string;
+  status: MmifEventStatus;
+  filingPeriod: string;
+  filingDeadline: string;
+  totalFunds: number;
+  fundsWithBreaks: number;
+  totalBreaks: number;
+  breaksByRule: Record<string, number>;
+  breaksBySeverity: Record<string, number>;
+  latestRun?: any;
+}
+
+export type AnyEvent = ConversionEvent | MmifEvent;
 
 // ── 5.2 Fund Entity ─────────────────────────────────────────
 
@@ -631,3 +730,67 @@ export interface ShareClassDashboardRow {
 
 // ── Break Resolution & Dashboarding Types ────────────────────
 export * from './breakResolution';
+
+// ── MMIF Agent Analysis Types ──
+export interface MmifAgentFinding {
+  agentName: string;
+  level: string;
+  timestamp: string;
+  description: string;
+  evidence: Record<string, any>;
+  confidence: number;
+  recommendedAction: string;
+}
+
+export interface MmifAgentAnalysis {
+  eventId: string;
+  phase: string;
+  overallConfidence: number;
+  rootCauseNarrative: string;
+  l0Findings: MmifAgentFinding[];
+  l1Findings: MmifAgentFinding[];
+  l2Findings: MmifAgentFinding[];
+  l3Findings: MmifAgentFinding[];
+  specialistFindings: MmifAgentFinding[];
+  rootCauses: Array<{ agent: string; level: string; description: string; confidence: number }>;
+  shouldEscalate: boolean;
+  attestationStatus: string;
+  attestationReport?: MmifAttestationReport;
+  pipelineSteps: MmifPipelineStep[];
+}
+
+export interface MmifPipelineStep {
+  name: string;
+  label: string;
+  status: 'pending' | 'running' | 'complete' | 'warning' | 'error' | 'skipped';
+  findingsCount: number;
+  duration?: number;
+}
+
+export interface MmifAttestationReport {
+  attestationId: string;
+  fundAccount: string;
+  filingPeriod: string;
+  totalRules: number;
+  passed: number;
+  warnings: number;
+  failed: number;
+  hardFailures: number;
+  submissionClearance: boolean;
+  readinessScore: number;
+  ruleResults: Array<{
+    ruleId: string;
+    ruleName: string;
+    severity: string;
+    status: string;
+    variance?: number;
+    rootCause?: string;
+    confidence?: number;
+  }>;
+}
+
+export interface MmifChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+}

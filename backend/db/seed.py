@@ -44,6 +44,9 @@ def seed_database():
     print("📦 Seeding Classification Mapping data...")
     seed_classification_mapping_data(db)
 
+    print("📦 Seeding MMIF Regulatory Filing events...")
+    seed_mmif_events(db)
+
     print("✅ Seed complete!")
     client.close()
 
@@ -288,6 +291,7 @@ def seed_events(db):
     events = [
         {
             "eventId": "EVT-2026-001",
+            "eventType": "CONVERSION",
             "eventName": "Vanguard Fixed Income Migration",
             "incumbentProvider": "State Street",
             "status": "PARALLEL",
@@ -310,6 +314,7 @@ def seed_events(db):
         },
         {
             "eventId": "EVT-2026-002",
+            "eventType": "CONVERSION",
             "eventName": "Fidelity Equity Suite",
             "incumbentProvider": "Northern Trust",
             "status": "ACTIVE",
@@ -328,6 +333,7 @@ def seed_events(db):
         },
         {
             "eventId": "EVT-2026-003",
+            "eventType": "CONVERSION",
             "eventName": "T. Rowe Price Multi-Strategy",
             "incumbentProvider": "BNP Paribas",
             "status": "ACTIVE",
@@ -349,6 +355,7 @@ def seed_events(db):
         },
         {
             "eventId": "EVT-2026-004",
+            "eventType": "CONVERSION",
             "eventName": "American Funds Conversion",
             "incumbentProvider": "JP Morgan",
             "status": "DRAFT",
@@ -1157,6 +1164,465 @@ def seed_classification_mapping_data(db):
     ]
     db[COLLECTIONS["convLedgerCategoryDerivation"]].insert_many(ledger_category_derivations)
     print(f"  Seeded {len(ledger_category_derivations)} ledger category derivation mappings")
+
+
+# ══════════════════════════════════════════════════════════════
+# MMIF Regulatory Filing Events
+# ══════════════════════════════════════════════════════════════
+
+def seed_mmif_events(db):
+    """Seed MMIF regulatory filing events with sample data."""
+    mmif_events = [
+        {
+            "eventId": "MMIF-2026-Q1-001",
+            "eventType": "REGULATORY_FILING",
+            "eventName": "Q1 2026 CBI Filing — Irish UCITS Range",
+            "regulatoryBody": "CBI",
+            "filingPeriod": "2026Q1",
+            "filingDeadline": "2026-04-30",
+            "filingFrequency": "QUARTERLY",
+            "status": "RECONCILIATION",
+            "assignedTeam": [
+                {"userId": "u-fad", "name": "Claire O'Brien", "role": "FUND_ADMIN"},
+                {"userId": "u-fa", "name": "Jane Doe", "role": "FUND_ACCOUNTANT"},
+            ],
+            "funds": [
+                {
+                    "account": "IE-UCITS-EQ-001",
+                    "fundName": "Aria Global Equity UCITS",
+                    "fundType": "UCITS",
+                    "fundDomicile": "IE",
+                    "cbiCode": "C12345",
+                    "shareClasses": ["A-EUR", "B-USD", "I-GBP"],
+                    "status": "IN_PARALLEL",
+                    "breakCount": 3,
+                },
+                {
+                    "account": "IE-UCITS-FI-002",
+                    "fundName": "Aria Euro Corporate Bond UCITS",
+                    "fundType": "UCITS",
+                    "fundDomicile": "IE",
+                    "cbiCode": "C12346",
+                    "shareClasses": ["A-EUR", "I-EUR"],
+                    "status": "PENDING",
+                    "breakCount": 0,
+                },
+                {
+                    "account": "IE-MMF-001",
+                    "fundName": "Aria Euro Liquidity MMF",
+                    "fundType": "MMF",
+                    "fundDomicile": "IE",
+                    "cbiCode": "C12347",
+                    "shareClasses": ["Inst-EUR"],
+                    "status": "IN_PARALLEL",
+                    "breakCount": 1,
+                },
+                {
+                    "account": "IE-UCITS-MA-003",
+                    "fundName": "Aria Multi-Asset Growth UCITS",
+                    "fundType": "UCITS",
+                    "fundDomicile": "IE",
+                    "cbiCode": "C12348",
+                    "shareClasses": ["A-EUR", "I-EUR", "R-GBP"],
+                    "status": "PENDING",
+                    "breakCount": 0,
+                },
+            ],
+            "breakTrend7d": [5, 4, 4, 3, 3, 3, 4],
+        },
+        {
+            "eventId": "MMIF-2026-Q1-002",
+            "eventType": "REGULATORY_FILING",
+            "eventName": "Q1 2026 CBI Filing — AIF Range",
+            "regulatoryBody": "CBI",
+            "filingPeriod": "2026Q1",
+            "filingDeadline": "2026-04-30",
+            "filingFrequency": "QUARTERLY",
+            "status": "DRAFT",
+            "assignedTeam": [
+                {"userId": "u-fad", "name": "Claire O'Brien", "role": "FUND_ADMIN"},
+            ],
+            "funds": [
+                {
+                    "account": "IE-AIF-PE-001",
+                    "fundName": "Aria Private Equity AIF",
+                    "fundType": "AIF",
+                    "fundDomicile": "IE",
+                    "cbiCode": "C23456",
+                    "shareClasses": ["I-EUR"],
+                    "status": "PENDING",
+                    "breakCount": 0,
+                },
+                {
+                    "account": "IE-HEDGE-001",
+                    "fundName": "Aria Long/Short Equity Hedge",
+                    "fundType": "HEDGE",
+                    "fundDomicile": "IE",
+                    "cbiCode": "C23457",
+                    "shareClasses": ["A-USD", "I-USD"],
+                    "status": "PENDING",
+                    "breakCount": 0,
+                },
+            ],
+            "breakTrend7d": [0, 0, 0, 0, 0, 0, 0],
+        },
+        {
+            "eventId": "MMIF-2026-M03-001",
+            "eventType": "REGULATORY_FILING",
+            "eventName": "March 2026 Monthly Filing — MMF",
+            "regulatoryBody": "CBI",
+            "filingPeriod": "2026M03",
+            "filingDeadline": "2026-04-12",
+            "filingFrequency": "MONTHLY",
+            "status": "EXTRACTION",
+            "assignedTeam": [
+                {"userId": "u-fad", "name": "Claire O'Brien", "role": "FUND_ADMIN"},
+                {"userId": "u-rl", "name": "David Park", "role": "RECON_LEAD"},
+            ],
+            "funds": [
+                {
+                    "account": "IE-MMF-001",
+                    "fundName": "Aria Euro Liquidity MMF",
+                    "fundType": "MMF",
+                    "fundDomicile": "IE",
+                    "cbiCode": "C12347",
+                    "shareClasses": ["Inst-EUR"],
+                    "status": "PENDING",
+                    "breakCount": 0,
+                },
+            ],
+            "breakTrend7d": [0, 0, 0, 0, 0, 0, 0],
+        },
+    ]
+    db[COLLECTIONS["mmifEvents"]].insert_many(mmif_events)
+
+    # Seed sample validation data for MMIF-2026-Q1-001
+    mmif_sample_data = [
+        # VR-001: Total Assets — slight mismatch for IE-UCITS-EQ-001
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1", "ruleId": "VR_001",
+         "eagleValue": 245_680_000.00, "mmifValue": 245_678_500.00},
+        # VR-002: Equity Subtotal — break
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1", "ruleId": "VR_002",
+         "eagleValue": 198_450_000.00, "mmifValue": 198_430_000.00},
+        # VR-003: Debt — pass
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1", "ruleId": "VR_003",
+         "eagleValue": 15_200_000.00, "mmifValue": 15_200_000.00},
+        # VR-004: Cash — pass
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1", "ruleId": "VR_004",
+         "eagleValue": 28_500_000.00, "mmifValue": 28_500_000.00},
+        # VR-005: Derivatives — small break
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1", "ruleId": "VR_005",
+         "eagleValue": 3_530_000.00, "mmifValue": 3_548_500.00},
+        # VR-010: P&L Quarter-Only — YTD trap break
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1", "ruleId": "VR_010",
+         "eagleValue": 4_250_000.00, "mmifValue": 12_750_000.00},
+        # VR-012: ISIN Coverage — 97% pass
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1", "ruleId": "VR_012",
+         "eagleValue": 0.97, "mmifValue": 0.95},
+        # IE-MMF-001 VR-001: small break
+        {"account": "IE-MMF-001", "filingPeriod": "2026Q1", "ruleId": "VR_001",
+         "eagleValue": 85_000_000.00, "mmifValue": 84_998_500.00},
+        # IE-UCITS-FI-002: all pass
+        {"account": "IE-UCITS-FI-002", "filingPeriod": "2026Q1", "ruleId": "VR_001",
+         "eagleValue": 125_000_000.00, "mmifValue": 125_000_000.00},
+        {"account": "IE-UCITS-FI-002", "filingPeriod": "2026Q1", "ruleId": "VR_003",
+         "eagleValue": 112_500_000.00, "mmifValue": 112_500_000.00},
+    ]
+    db["mmifSampleData"].insert_many(mmif_sample_data)
+
+    # Seed sample MMIF mapping config for IE-UCITS-EQ-001
+    mmif_mapping = {
+        "configId": "MMIF-MAP-001",
+        "eventId": "MMIF-2026-Q1-001",
+        "account": "IE-UCITS-EQ-001",
+        "fundType": "UCITS",
+        "baseCurrency": "EUR",
+        "mappings": [
+            {
+                "eagleGlPattern": "1000*",
+                "eagleSourceTable": "dataSubLedgerPosition",
+                "eagleSourceField": "posMarketValueBase",
+                "mmifSection": "3.1",
+                "mmifField": "closing_position",
+                "instrumentType": 1,
+                "codeType": 1,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Equity positions at market value",
+            },
+            {
+                "eagleGlPattern": "1100*",
+                "eagleSourceTable": "dataLedger",
+                "eagleSourceField": "endingBalance",
+                "mmifSection": "3.5",
+                "mmifField": "closing_balance",
+                "instrumentType": None,
+                "codeType": 4,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Cash and deposits",
+            },
+            {
+                "eagleGlPattern": "1300*",
+                "eagleSourceTable": "dataLedger",
+                "eagleSourceField": "endingBalance",
+                "mmifSection": "3.6",
+                "mmifField": "accrued_income",
+                "instrumentType": None,
+                "codeType": 4,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Accrued income — other assets",
+            },
+        ],
+        "counterpartyEnrichment": {
+            "JPMORGAN_IE": {"sector": "S122", "country": "IE"},
+            "EUROCLEAR": {"sector": "S125", "country": "BE"},
+            "CITI_IE": {"sector": "S122", "country": "IE"},
+        },
+        "investorClassification": {
+            "S122": "MFI",
+            "S124": "Non-MMF Investment Funds",
+            "S128": "Insurance Corporations",
+            "S2": "Rest of World",
+        },
+        "unmappedAccounts": [],
+        "createdAt": "2026-03-01T09:00:00",
+        "updatedAt": "2026-03-10T14:30:00",
+    }
+    mmif_mapping_fi = {
+        "configId": "MMIF-MAP-002",
+        "eventId": "MMIF-2026-Q1-001",
+        "account": "IE-UCITS-FI-002",
+        "fundType": "UCITS",
+        "baseCurrency": "EUR",
+        "mappings": [
+            {
+                "eagleGlPattern": "1200*",
+                "eagleSourceTable": "dataSubLedgerPosition",
+                "eagleSourceField": "posMarketValueBase",
+                "mmifSection": "3.2",
+                "mmifField": "closing_position",
+                "instrumentType": 2,
+                "codeType": 1,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Debt securities at market value",
+            },
+            {
+                "eagleGlPattern": "1210*",
+                "eagleSourceTable": "dataSubLedgerPosition",
+                "eagleSourceField": "posAccruedIncomeBase",
+                "mmifSection": "3.2",
+                "mmifField": "accrued_interest",
+                "instrumentType": 2,
+                "codeType": 1,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Accrued interest on debt securities",
+            },
+            {
+                "eagleGlPattern": "1100*",
+                "eagleSourceTable": "dataLedger",
+                "eagleSourceField": "endingBalance",
+                "mmifSection": "3.5",
+                "mmifField": "closing_balance",
+                "instrumentType": None,
+                "codeType": 4,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Cash and deposits",
+            },
+            {
+                "eagleGlPattern": "1300*",
+                "eagleSourceTable": "dataLedger",
+                "eagleSourceField": "endingBalance",
+                "mmifSection": "3.6",
+                "mmifField": "accrued_income",
+                "instrumentType": None,
+                "codeType": 4,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Accrued income — other assets",
+            },
+        ],
+        "counterpartyEnrichment": {
+            "JPMORGAN_IE": {"sector": "S122", "country": "IE"},
+            "STATE_STREET_IE": {"sector": "S122", "country": "IE"},
+        },
+        "investorClassification": {
+            "S122": "MFI",
+            "S128": "Insurance Corporations",
+            "S2": "Rest of World",
+        },
+        "unmappedAccounts": [],
+        "createdAt": "2026-03-01T09:00:00",
+        "updatedAt": "2026-03-10T14:30:00",
+    }
+
+    mmif_mapping_mmf = {
+        "configId": "MMIF-MAP-003",
+        "eventId": "MMIF-2026-Q1-001",
+        "account": "IE-MMF-001",
+        "fundType": "MMF",
+        "baseCurrency": "EUR",
+        "mappings": [
+            {
+                "eagleGlPattern": "1200*",
+                "eagleSourceTable": "dataSubLedgerPosition",
+                "eagleSourceField": "posMarketValueBase",
+                "mmifSection": "3.2",
+                "mmifField": "closing_position",
+                "instrumentType": 2,
+                "codeType": 1,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Debt securities — money market instruments",
+            },
+            {
+                "eagleGlPattern": "1110*",
+                "eagleSourceTable": "dataLedger",
+                "eagleSourceField": "endingBalance",
+                "mmifSection": "3.5",
+                "mmifField": "closing_balance",
+                "instrumentType": None,
+                "codeType": 4,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Cash at bank — overnight deposits",
+            },
+            {
+                "eagleGlPattern": "2100*",
+                "eagleSourceTable": "dataLedger",
+                "eagleSourceField": "endingBalance",
+                "mmifSection": "4.1",
+                "mmifField": "deposit_liabilities",
+                "instrumentType": None,
+                "codeType": 5,
+                "transformation": "NEGATE",
+                "signConvention": -1,
+                "isReported": True,
+                "notes": "Deposit liabilities — reverse repos",
+            },
+        ],
+        "counterpartyEnrichment": {
+            "ECB": {"sector": "S121", "country": "EA"},
+            "EUROCLEAR": {"sector": "S125", "country": "BE"},
+        },
+        "investorClassification": {
+            "S121": "Central Bank",
+            "S122": "MFI",
+            "S125": "Other Financial Intermediaries",
+        },
+        "unmappedAccounts": [],
+        "createdAt": "2026-03-02T10:00:00",
+        "updatedAt": "2026-03-11T11:15:00",
+    }
+
+    mmif_mapping_ma = {
+        "configId": "MMIF-MAP-004",
+        "eventId": "MMIF-2026-Q1-001",
+        "account": "IE-UCITS-MA-003",
+        "fundType": "UCITS",
+        "baseCurrency": "EUR",
+        "mappings": [
+            {
+                "eagleGlPattern": "1000*",
+                "eagleSourceTable": "dataSubLedgerPosition",
+                "eagleSourceField": "posMarketValueBase",
+                "mmifSection": "3.1",
+                "mmifField": "closing_position",
+                "instrumentType": 1,
+                "codeType": 1,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Equity positions at market value",
+            },
+            {
+                "eagleGlPattern": "1200*",
+                "eagleSourceTable": "dataSubLedgerPosition",
+                "eagleSourceField": "posMarketValueBase",
+                "mmifSection": "3.2",
+                "mmifField": "closing_position",
+                "instrumentType": 2,
+                "codeType": 1,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Debt securities at market value",
+            },
+            {
+                "eagleGlPattern": "1400*",
+                "eagleSourceTable": "dataSubLedgerPosition",
+                "eagleSourceField": "posMarketValueBase",
+                "mmifSection": "3.3",
+                "mmifField": "closing_position",
+                "instrumentType": 3,
+                "codeType": 2,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Investment fund shares/units",
+            },
+            {
+                "eagleGlPattern": "1100*",
+                "eagleSourceTable": "dataLedger",
+                "eagleSourceField": "endingBalance",
+                "mmifSection": "3.5",
+                "mmifField": "closing_balance",
+                "instrumentType": None,
+                "codeType": 4,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Cash and deposits",
+            },
+            {
+                "eagleGlPattern": "1500*",
+                "eagleSourceTable": "dataSubLedgerPosition",
+                "eagleSourceField": "posMarketValueBase",
+                "mmifSection": "3.4",
+                "mmifField": "closing_position",
+                "instrumentType": 4,
+                "codeType": 3,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Financial derivatives — FX forwards & options",
+            },
+        ],
+        "counterpartyEnrichment": {
+            "JPMORGAN_IE": {"sector": "S122", "country": "IE"},
+            "EUROCLEAR": {"sector": "S125", "country": "BE"},
+            "GOLDMAN_SACHS_IE": {"sector": "S122", "country": "IE"},
+            "BLACKROCK_IE": {"sector": "S124", "country": "IE"},
+        },
+        "investorClassification": {
+            "S122": "MFI",
+            "S124": "Non-MMF Investment Funds",
+            "S125": "Other Financial Intermediaries",
+            "S128": "Insurance Corporations",
+            "S2": "Rest of World",
+        },
+        "unmappedAccounts": ["1600*"],
+        "createdAt": "2026-03-01T09:00:00",
+        "updatedAt": "2026-03-10T14:30:00",
+    }
+
+    mmif_mappings = [mmif_mapping, mmif_mapping_fi, mmif_mapping_mmf, mmif_mapping_ma]
+    db[COLLECTIONS["mmifMappingConfigs"]].insert_many(mmif_mappings)
+
+    print(f"  Seeded {len(mmif_events)} MMIF events, {len(mmif_sample_data)} sample data rows, {len(mmif_mappings)} mapping configs")
 
 
 if __name__ == "__main__":

@@ -13,6 +13,11 @@ from pydantic import BaseModel, Field
 # Enums
 # ══════════════════════════════════════════════════════════════
 
+class EventType(str, Enum):
+    CONVERSION = "CONVERSION"
+    REGULATORY_FILING = "REGULATORY_FILING"
+
+
 class EventStatus(str, Enum):
     DRAFT = "DRAFT"
     ACTIVE = "ACTIVE"
@@ -26,6 +31,73 @@ class FundType(str, Enum):
     FIXED_INCOME = "FIXED_INCOME"
     MULTI_ASSET = "MULTI_ASSET"
     MONEY_MARKET = "MONEY_MARKET"
+
+
+# ══════════════════════════════════════════════════════════════
+# MMIF Regulatory Filing Enums
+# ══════════════════════════════════════════════════════════════
+
+class MmifEventStatus(str, Enum):
+    DRAFT = "DRAFT"
+    MAPPING = "MAPPING"
+    EXTRACTION = "EXTRACTION"
+    RECONCILIATION = "RECONCILIATION"
+    REVIEW = "REVIEW"
+    FILED = "FILED"
+
+
+class MmifFundType(str, Enum):
+    UCITS = "UCITS"
+    AIF = "AIF"
+    MMF = "MMF"
+    HEDGE = "HEDGE"
+
+
+class MmifCheckType(str, Enum):
+    VR_001 = "VR_001"  # Total Assets Tie-Out
+    VR_002 = "VR_002"  # Equity Subtotal
+    VR_003 = "VR_003"  # Debt Subtotal
+    VR_004 = "VR_004"  # Cash Subtotal
+    VR_005 = "VR_005"  # Derivative Net
+    VR_006 = "VR_006"  # Opening = Prior Closing
+    VR_007 = "VR_007"  # Balance Identity
+    VR_008 = "VR_008"  # Accrued Income
+    VR_009 = "VR_009"  # Fund Shares/Units
+    VR_010 = "VR_010"  # P&L Quarter-Only
+    VR_011 = "VR_011"  # FX Consistency
+    VR_012 = "VR_012"  # ISIN Coverage
+    VR_013 = "VR_013"  # Sec Lending Off-BS
+    VR_014 = "VR_014"  # Short Position Sign
+    VR_015 = "VR_015"  # Investor Decomposition
+
+
+class MmifSeverity(str, Enum):
+    HARD = "HARD"
+    SOFT = "SOFT"
+    DERIVED = "DERIVED"
+    ADVISORY = "ADVISORY"
+
+
+class FilingFrequency(str, Enum):
+    MONTHLY = "MONTHLY"
+    QUARTERLY = "QUARTERLY"
+
+
+class MmifSection(str, Enum):
+    PNL = "2"
+    EQUITIES = "3.1"
+    DEBT_SECURITIES = "3.2"
+    PROPERTY = "3.3"
+    SECURITIES_BORROWING = "3.4"
+    CASH_DEPOSITS = "3.5"
+    OTHER_ASSETS = "3.6"
+    OVERDRAFTS = "4.1"
+    DERIVATIVES = "4.2"
+    TOTAL_ASSETS = "4.3"
+    FUND_SHARES = "5.1"
+    SECURITIES_LENDING = "5.2"
+    LOANS = "5.3"
+    OTHER_LIABILITIES = "5.4"
 
 
 class FundStatus(str, Enum):
@@ -266,6 +338,7 @@ class FundDoc(BaseModel):
 class EventDoc(BaseModel):
     """Conversion Event document"""
     eventId: str
+    eventType: EventType = EventType.CONVERSION
     eventName: str
     incumbentProvider: str
     status: EventStatus = EventStatus.DRAFT
@@ -624,3 +697,151 @@ class AuditLogDoc(BaseModel):
     changedByName: Optional[str] = None
     timestamp: str
     metadata: Optional[dict] = None
+
+
+# ══════════════════════════════════════════════════════════════
+# MMIF Regulatory Filing Schemas
+# ══════════════════════════════════════════════════════════════
+
+class MmifFundDoc(BaseModel):
+    """Fund within an MMIF regulatory filing event."""
+    account: str
+    fundName: str
+    fundType: MmifFundType
+    fundDomicile: str = "IE"
+    cbiCode: Optional[str] = None
+    shareClasses: list[str] = []
+    status: FundStatus = FundStatus.PENDING
+    lastRunTimestamp: Optional[str] = None
+    breakCount: int = 0
+
+
+class MmifEventDoc(BaseModel):
+    """MMIF Regulatory Filing Event document."""
+    eventId: str
+    eventType: EventType = EventType.REGULATORY_FILING
+    eventName: str
+    regulatoryBody: str = "CBI"
+    filingPeriod: str  # e.g. "2026Q1"
+    filingDeadline: str
+    filingFrequency: FilingFrequency = FilingFrequency.QUARTERLY
+    status: MmifEventStatus = MmifEventStatus.DRAFT
+    assignedTeam: list[TeamMember] = []
+    funds: list[MmifFundDoc] = []
+    breakTrend7d: list[int] = []
+
+
+class MmifValidationRule(BaseModel):
+    """Definition of a single MMIF validation rule."""
+    ruleId: str
+    ruleName: str
+    description: str
+    severity: MmifSeverity
+    tolerance: float = 0.0
+    mmifSection: Optional[str] = None
+
+
+class MmifValidationResultDoc(BaseModel):
+    """Result of a single MMIF validation rule execution."""
+    ruleId: str
+    ruleName: str
+    severity: MmifSeverity
+    mmifSection: Optional[str] = None
+    fundAccount: str
+    fundName: str
+    status: ValidationResultStatus
+    lhsLabel: str = ""
+    lhsValue: float = 0
+    rhsLabel: str = ""
+    rhsValue: float = 0
+    variance: float = 0
+    tolerance: float = 0
+    breakCount: int = 0
+    durationMs: int = 0
+
+
+class MmifValidationRunDoc(BaseModel):
+    """MMIF validation run document."""
+    runId: str
+    eventId: str
+    filingPeriod: str
+    executionTime: str
+    checkSuite: list[str]  # VR_001 through VR_015
+    status: RunStatus = RunStatus.QUEUED
+    durationMs: Optional[int] = None
+    fundsPassed: Optional[int] = None
+    fundsWarning: Optional[int] = None
+    fundsFailed: Optional[int] = None
+    results: list[MmifValidationResultDoc] = []
+
+
+class MmifBreakRecordDoc(BaseModel):
+    """Break record specific to MMIF validation."""
+    breakId: str
+    validationRunId: str
+    eventId: str
+    ruleId: str
+    ruleName: str
+    severity: MmifSeverity
+    mmifSection: Optional[str] = None
+    fundAccount: str
+    fundName: str
+    lhsLabel: str
+    lhsValue: float
+    rhsLabel: str
+    rhsValue: float
+    variance: float
+    tolerance: float
+    state: BreakState = BreakState.DETECTED
+    aiAnalysis: Optional[AIAnalysisDoc] = None
+    humanAnnotation: Optional[HumanAnnotation] = None
+    securityId: Optional[str] = None
+
+
+class MmifFieldMappingDoc(BaseModel):
+    """Individual Eagle GL to MMIF field mapping entry."""
+    eagleGlPattern: str
+    eagleSourceTable: str
+    eagleSourceField: str
+    mmifSection: str
+    mmifField: str
+    instrumentType: Optional[int] = None
+    codeType: int = 1  # 1=ISIN, 2=SEDOL, 3=CUSIP, 4=Internal
+    transformation: Optional[str] = None
+    signConvention: int = 1
+    isReported: bool = True
+    notes: str = ""
+
+
+class MmifMappingConfigDoc(BaseModel):
+    """MMIF mapping configuration for a fund."""
+    configId: str
+    eventId: str
+    account: str
+    fundType: str
+    baseCurrency: str = "EUR"
+    mappings: list[MmifFieldMappingDoc] = []
+    counterpartyEnrichment: dict = {}
+    investorClassification: dict = {}
+    unmappedAccounts: list[str] = []
+    createdAt: Optional[str] = None
+    updatedAt: Optional[str] = None
+
+
+class RunMmifValidationRequest(BaseModel):
+    """Request to run MMIF validation."""
+    eventId: str
+    filingPeriod: str
+    checkSuite: list[str]
+    fundSelection: str = "all"
+
+
+class MmifSectionSummary(BaseModel):
+    """Summary of a single MMIF section for the dashboard."""
+    section: str
+    sectionName: str
+    eagleValue: float = 0
+    mmifValue: float = 0
+    variance: float = 0
+    status: ValidationResultStatus = ValidationResultStatus.PASSED
+    ruleId: Optional[str] = None

@@ -121,4 +121,14 @@ COLLECTIONS = {
     "mappingJobs": "mappingJobs",
     "lookupTables": "lookupTables",
     "mappingAuditLog": "mappingAuditLog",
+    # MMIF Regulatory Filing Tables
+    "mmifEvents": "mmifEvents",
+    "mmifValidationRuns": "mmifValidationRuns",
+    "mmifBreakRecords": "mmifBreakRecords",
+    "mmifMappingConfigs": "mmifMappingConfigs",
+    "mmifActivityFeed": "mmifActivityFeed",
+    # MMIF 6-Agent Analysis Tables
+    "mmifAgentAnalysis": "mmifAgentAnalysis",
+    "mmifChatSessions": "mmifChatSessions",
+    "mmifAttestations": "mmifAttestations",
 }

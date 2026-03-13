@@ -14,6 +14,7 @@ const ROLE_USER_INFO: Record<AppRole, { userId: string; userName: string; initia
   AUDITOR: { userId: 'u-au', userName: 'Lisa Wang', initials: 'AU' },
   NAV_OPS_ANALYST: { userId: 'u-na', userName: 'Rachel Torres', initials: 'NA' },
   CLIENT_STAKEHOLDER: { userId: 'u-cs', userName: 'James Mitchell', initials: 'CS' },
+  FUND_ADMIN: { userId: 'u-fad', userName: "Claire O'Brien", initials: 'FD' },
 };
 
 // ── State Shape ────────────────────────────────────────────
