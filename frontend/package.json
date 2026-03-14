@@ -8,6 +8,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
+    "@monaco-editor/react": "^4.7.0",
     "@mui/icons-material": "^7.3.7",
     "@mui/material": "^7.3.7",
     "@mui/x-data-grid": "^8.27.0",
@@ -56,5 +57,10 @@
   },
   "devDependencies": {
     "@types/react-router-dom": "^5.3.3"
+  },
+  "jest": {
+    "moduleNameMapper": {
+      "^react-router-dom$": "<rootDir>/node_modules/react-router-dom/dist/index.js"
+    }
   }
 }

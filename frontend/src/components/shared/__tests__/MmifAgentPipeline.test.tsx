@@ -73,7 +73,7 @@ describe('MmifAgentPipeline', () => {
 
   it('shows root cause narrative', () => {
     wrap(<MmifAgentPipeline analysis={mockAnalysis()} loading={false} />);
-    expect(screen.getByText('Root Cause Narrative')).toBeInTheDocument();
+    expect(screen.getByText('AI Analysis Report')).toBeInTheDocument();
     expect(screen.getByText(/FX rate inconsistency/)).toBeInTheDocument();
   });
 

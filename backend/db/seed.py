@@ -1328,13 +1328,102 @@ def seed_mmif_events(db):
         {"account": "IE-UCITS-FI-002", "filingPeriod": "2026Q1", "ruleId": "VR_003",
          "eagleValue": 112_500_000.00, "mmifValue": 112_500_000.00},
     ]
+    # Ledger cross-check sample data (VR-016 through VR-020)
+    mmif_sample_data.extend([
+        # IE-UCITS-EQ-001: VR-020 has a break (BS Diff != Total PnL)
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1", "ruleId": "VR_016",
+         "eagleValue": 5_500_000.00, "mmifValue": 5_500_000.00,
+         "lhsLabel": "BS Diff (A-L-C)", "rhsLabel": "BS Diff (MMIF)"},
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1", "ruleId": "VR_017",
+         "eagleValue": 3_300_000.00, "mmifValue": 3_300_000.00,
+         "lhsLabel": "Net Income (GL)", "rhsLabel": "Net Income (MMIF)"},
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1", "ruleId": "VR_018",
+         "eagleValue": 2_700_000.00, "mmifValue": 2_700_000.00,
+         "lhsLabel": "Net GL (GL)", "rhsLabel": "Net GL (MMIF)"},
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1", "ruleId": "VR_019",
+         "eagleValue": 6_000_000.00, "mmifValue": 6_000_000.00,
+         "lhsLabel": "Total PnL (GL)", "rhsLabel": "Total PnL (MMIF)"},
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1", "ruleId": "VR_020",
+         "eagleValue": 5_500_000.00, "mmifValue": 6_000_000.00,
+         "lhsLabel": "BS Diff", "rhsLabel": "Total PnL"},
+        # IE-UCITS-FI-002: all cross-checks pass (balanced TB)
+        {"account": "IE-UCITS-FI-002", "filingPeriod": "2026Q1", "ruleId": "VR_016",
+         "eagleValue": 4_200_000.00, "mmifValue": 4_200_000.00,
+         "lhsLabel": "BS Diff (A-L-C)", "rhsLabel": "BS Diff (MMIF)"},
+        {"account": "IE-UCITS-FI-002", "filingPeriod": "2026Q1", "ruleId": "VR_020",
+         "eagleValue": 4_200_000.00, "mmifValue": 4_200_000.00,
+         "lhsLabel": "BS Diff", "rhsLabel": "Total PnL"},
+    ])
     db["mmifSampleData"].insert_many(mmif_sample_data)
 
+    # Seed MMIF Ledger Data for cross-check rules (VR-016 to VR-020)
+    # GL accounts with starting/ending balances for IE-UCITS-EQ-001
+    mmif_ledger_data = [
+        # Assets (1xxx)
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1",
+         "glAccountNumber": "1000", "glDescription": "Investments at Market",
+         "startingBalance": 200_000_000.00, "endingBalance": 210_000_000.00},
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1",
+         "glAccountNumber": "1100", "glDescription": "Cash & Equivalents",
+         "startingBalance": 28_000_000.00, "endingBalance": 28_500_000.00},
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1",
+         "glAccountNumber": "1200", "glDescription": "Receivables",
+         "startingBalance": 5_000_000.00, "endingBalance": 5_180_000.00},
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1",
+         "glAccountNumber": "1300", "glDescription": "Accrued Income",
+         "startingBalance": 1_500_000.00, "endingBalance": 2_000_000.00},
+        # Liabilities (2xxx)
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1",
+         "glAccountNumber": "2000", "glDescription": "Payables",
+         "startingBalance": 8_000_000.00, "endingBalance": 8_200_000.00},
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1",
+         "glAccountNumber": "2100", "glDescription": "Distributions Payable",
+         "startingBalance": 2_000_000.00, "endingBalance": 2_100_000.00},
+        # Capital (3xxx)
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1",
+         "glAccountNumber": "3000", "glDescription": "Net Assets / Capital",
+         "startingBalance": 220_000_000.00, "endingBalance": 224_880_000.00},
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1",
+         "glAccountNumber": "3100", "glDescription": "Capital Stock",
+         "startingBalance": 1_500_000.00, "endingBalance": 1_500_000.00},
+        # Income (4xxx)
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1",
+         "glAccountNumber": "4000", "glDescription": "Investment Income",
+         "startingBalance": 0.0, "endingBalance": 3_200_000.00},
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1",
+         "glAccountNumber": "4100", "glDescription": "Dividend Income",
+         "startingBalance": 0.0, "endingBalance": 1_800_000.00},
+        # Expense (5xxx)
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1",
+         "glAccountNumber": "5000", "glDescription": "Management Fees",
+         "startingBalance": 0.0, "endingBalance": 1_250_000.00},
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1",
+         "glAccountNumber": "5100", "glDescription": "Custody & Admin Fees",
+         "startingBalance": 0.0, "endingBalance": 450_000.00},
+        # RGL (61xx)
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1",
+         "glAccountNumber": "6100", "glDescription": "Realized Gains",
+         "startingBalance": 0.0, "endingBalance": 2_100_000.00},
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1",
+         "glAccountNumber": "6110", "glDescription": "Realized Losses",
+         "startingBalance": 0.0, "endingBalance": -300_000.00},
+        # URGL (6xxx excl 61xx)
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1",
+         "glAccountNumber": "6200", "glDescription": "Unrealized Gains",
+         "startingBalance": 0.0, "endingBalance": 1_500_000.00},
+        {"account": "IE-UCITS-EQ-001", "filingPeriod": "2026Q1",
+         "glAccountNumber": "6300", "glDescription": "Unrealized Losses",
+         "startingBalance": 0.0, "endingBalance": -600_000.00},
+    ]
+    db[COLLECTIONS.get("mmifLedgerData", "mmifLedgerData")].insert_many(mmif_ledger_data)
+
     # Seed sample MMIF mapping config for IE-UCITS-EQ-001
-    mmif_mapping = {
-        "configId": "MMIF-MAP-001",
+    # ── Mapping Templates by Fund Type ──────────────────────────
+    # One template per fund type (not per fund) — all funds of a type share the same mapping
+    mmif_template_ucits = {
+        "configId": "MMIF-TPL-UCITS",
         "eventId": "MMIF-2026-Q1-001",
-        "account": "IE-UCITS-EQ-001",
+        "account": "UCITS",
         "fundType": "UCITS",
         "baseCurrency": "EUR",
         "mappings": [
@@ -1350,6 +1439,58 @@ def seed_mmif_events(db):
                 "signConvention": 1,
                 "isReported": True,
                 "notes": "Equity positions at market value",
+            },
+            {
+                "eagleGlPattern": "1200*",
+                "eagleSourceTable": "dataSubLedgerPosition",
+                "eagleSourceField": "posMarketValueBase",
+                "mmifSection": "3.2",
+                "mmifField": "closing_position",
+                "instrumentType": 2,
+                "codeType": 1,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Debt securities at market value",
+            },
+            {
+                "eagleGlPattern": "1210*",
+                "eagleSourceTable": "dataSubLedgerPosition",
+                "eagleSourceField": "posAccruedIncomeBase",
+                "mmifSection": "3.2",
+                "mmifField": "accrued_interest",
+                "instrumentType": 2,
+                "codeType": 1,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Accrued interest on debt securities",
+            },
+            {
+                "eagleGlPattern": "1400*",
+                "eagleSourceTable": "dataSubLedgerPosition",
+                "eagleSourceField": "posMarketValueBase",
+                "mmifSection": "3.3",
+                "mmifField": "closing_position",
+                "instrumentType": 3,
+                "codeType": 2,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Investment fund shares/units",
+            },
+            {
+                "eagleGlPattern": "1500*",
+                "eagleSourceTable": "dataSubLedgerPosition",
+                "eagleSourceField": "posMarketValueBase",
+                "mmifSection": "3.4",
+                "mmifField": "closing_position",
+                "instrumentType": 4,
+                "codeType": 3,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Financial derivatives — FX forwards & options",
             },
             {
                 "eagleGlPattern": "1100*",
@@ -1382,83 +1523,14 @@ def seed_mmif_events(db):
             "JPMORGAN_IE": {"sector": "S122", "country": "IE"},
             "EUROCLEAR": {"sector": "S125", "country": "BE"},
             "CITI_IE": {"sector": "S122", "country": "IE"},
+            "STATE_STREET_IE": {"sector": "S122", "country": "IE"},
+            "GOLDMAN_SACHS_IE": {"sector": "S122", "country": "IE"},
+            "BLACKROCK_IE": {"sector": "S124", "country": "IE"},
         },
         "investorClassification": {
             "S122": "MFI",
             "S124": "Non-MMF Investment Funds",
-            "S128": "Insurance Corporations",
-            "S2": "Rest of World",
-        },
-        "unmappedAccounts": [],
-        "createdAt": "2026-03-01T09:00:00",
-        "updatedAt": "2026-03-10T14:30:00",
-    }
-    mmif_mapping_fi = {
-        "configId": "MMIF-MAP-002",
-        "eventId": "MMIF-2026-Q1-001",
-        "account": "IE-UCITS-FI-002",
-        "fundType": "UCITS",
-        "baseCurrency": "EUR",
-        "mappings": [
-            {
-                "eagleGlPattern": "1200*",
-                "eagleSourceTable": "dataSubLedgerPosition",
-                "eagleSourceField": "posMarketValueBase",
-                "mmifSection": "3.2",
-                "mmifField": "closing_position",
-                "instrumentType": 2,
-                "codeType": 1,
-                "transformation": None,
-                "signConvention": 1,
-                "isReported": True,
-                "notes": "Debt securities at market value",
-            },
-            {
-                "eagleGlPattern": "1210*",
-                "eagleSourceTable": "dataSubLedgerPosition",
-                "eagleSourceField": "posAccruedIncomeBase",
-                "mmifSection": "3.2",
-                "mmifField": "accrued_interest",
-                "instrumentType": 2,
-                "codeType": 1,
-                "transformation": None,
-                "signConvention": 1,
-                "isReported": True,
-                "notes": "Accrued interest on debt securities",
-            },
-            {
-                "eagleGlPattern": "1100*",
-                "eagleSourceTable": "dataLedger",
-                "eagleSourceField": "endingBalance",
-                "mmifSection": "3.5",
-                "mmifField": "closing_balance",
-                "instrumentType": None,
-                "codeType": 4,
-                "transformation": None,
-                "signConvention": 1,
-                "isReported": True,
-                "notes": "Cash and deposits",
-            },
-            {
-                "eagleGlPattern": "1300*",
-                "eagleSourceTable": "dataLedger",
-                "eagleSourceField": "endingBalance",
-                "mmifSection": "3.6",
-                "mmifField": "accrued_income",
-                "instrumentType": None,
-                "codeType": 4,
-                "transformation": None,
-                "signConvention": 1,
-                "isReported": True,
-                "notes": "Accrued income — other assets",
-            },
-        ],
-        "counterpartyEnrichment": {
-            "JPMORGAN_IE": {"sector": "S122", "country": "IE"},
-            "STATE_STREET_IE": {"sector": "S122", "country": "IE"},
-        },
-        "investorClassification": {
-            "S122": "MFI",
+            "S125": "Other Financial Intermediaries",
             "S128": "Insurance Corporations",
             "S2": "Rest of World",
         },
@@ -1467,10 +1539,10 @@ def seed_mmif_events(db):
         "updatedAt": "2026-03-10T14:30:00",
     }
 
-    mmif_mapping_mmf = {
-        "configId": "MMIF-MAP-003",
+    mmif_template_mmf = {
+        "configId": "MMIF-TPL-MMF",
         "eventId": "MMIF-2026-Q1-001",
-        "account": "IE-MMF-001",
+        "account": "MMF",
         "fundType": "MMF",
         "baseCurrency": "EUR",
         "mappings": [
@@ -1528,11 +1600,11 @@ def seed_mmif_events(db):
         "updatedAt": "2026-03-11T11:15:00",
     }
 
-    mmif_mapping_ma = {
-        "configId": "MMIF-MAP-004",
-        "eventId": "MMIF-2026-Q1-001",
-        "account": "IE-UCITS-MA-003",
-        "fundType": "UCITS",
+    mmif_template_aif = {
+        "configId": "MMIF-TPL-AIF",
+        "eventId": "MMIF-2026-Q1-002",
+        "account": "AIF",
+        "fundType": "AIF",
         "baseCurrency": "EUR",
         "mappings": [
             {
@@ -1546,7 +1618,7 @@ def seed_mmif_events(db):
                 "transformation": None,
                 "signConvention": 1,
                 "isReported": True,
-                "notes": "Equity positions at market value",
+                "notes": "PE / equity positions at market value",
             },
             {
                 "eagleGlPattern": "1200*",
@@ -1562,17 +1634,17 @@ def seed_mmif_events(db):
                 "notes": "Debt securities at market value",
             },
             {
-                "eagleGlPattern": "1400*",
+                "eagleGlPattern": "1500*",
                 "eagleSourceTable": "dataSubLedgerPosition",
                 "eagleSourceField": "posMarketValueBase",
-                "mmifSection": "3.3",
+                "mmifSection": "3.4",
                 "mmifField": "closing_position",
-                "instrumentType": 3,
-                "codeType": 2,
+                "instrumentType": 4,
+                "codeType": 1,
                 "transformation": None,
                 "signConvention": 1,
                 "isReported": True,
-                "notes": "Investment fund shares/units",
+                "notes": "Derivatives — hedging instruments",
             },
             {
                 "eagleGlPattern": "1100*",
@@ -1588,41 +1660,847 @@ def seed_mmif_events(db):
                 "notes": "Cash and deposits",
             },
             {
+                "eagleGlPattern": "1700*",
+                "eagleSourceTable": "dataLedger",
+                "eagleSourceField": "endingBalance",
+                "mmifSection": "3.6",
+                "mmifField": "other_assets",
+                "instrumentType": None,
+                "codeType": 4,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Uncalled capital commitments",
+            },
+            {
+                "eagleGlPattern": "1300*",
+                "eagleSourceTable": "dataLedger",
+                "eagleSourceField": "endingBalance",
+                "mmifSection": "3.6",
+                "mmifField": "accrued_income",
+                "instrumentType": None,
+                "codeType": 4,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Accrued income — other assets",
+            },
+            {
+                "eagleGlPattern": "3000*",
+                "eagleSourceTable": "dataLedger",
+                "eagleSourceField": "endingBalance",
+                "mmifSection": "5.1",
+                "mmifField": "fund_shares",
+                "instrumentType": None,
+                "codeType": 4,
+                "transformation": None,
+                "signConvention": -1,
+                "isReported": True,
+                "notes": "Fund shares / units issued",
+            },
+        ],
+        "counterpartyEnrichment": {
+            "ARIA_PE_GP": {"sector": "S124", "country": "IE"},
+            "JPMORGAN_IE": {"sector": "S122", "country": "IE"},
+        },
+        "investorClassification": {
+            "S124": "Non-MMF Investment Funds",
+            "S128": "Insurance Corporations",
+            "S2": "Rest of World",
+        },
+        "unmappedAccounts": ["1800*"],
+        "createdAt": "2026-03-14T09:00:00",
+        "updatedAt": "2026-03-14T09:00:00",
+    }
+
+    mmif_template_hedge = {
+        "configId": "MMIF-TPL-HEDGE",
+        "eventId": "MMIF-2026-Q1-002",
+        "account": "HEDGE",
+        "fundType": "HEDGE",
+        "baseCurrency": "USD",
+        "mappings": [
+            {
+                "eagleGlPattern": "1000*",
+                "eagleSourceTable": "dataSubLedgerPosition",
+                "eagleSourceField": "posMarketValueBase",
+                "mmifSection": "3.1",
+                "mmifField": "closing_position",
+                "instrumentType": 1,
+                "codeType": 1,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Long equity positions",
+            },
+            {
+                "eagleGlPattern": "1010*",
+                "eagleSourceTable": "dataSubLedgerPosition",
+                "eagleSourceField": "posMarketValueBase",
+                "mmifSection": "3.1",
+                "mmifField": "closing_position",
+                "instrumentType": 1,
+                "codeType": 1,
+                "transformation": None,
+                "signConvention": -1,
+                "isReported": True,
+                "notes": "Short equity positions",
+            },
+            {
                 "eagleGlPattern": "1500*",
                 "eagleSourceTable": "dataSubLedgerPosition",
                 "eagleSourceField": "posMarketValueBase",
                 "mmifSection": "3.4",
                 "mmifField": "closing_position",
                 "instrumentType": 4,
-                "codeType": 3,
+                "codeType": 1,
                 "transformation": None,
                 "signConvention": 1,
                 "isReported": True,
-                "notes": "Financial derivatives — FX forwards & options",
+                "notes": "Derivatives — options",
+            },
+            {
+                "eagleGlPattern": "1510*",
+                "eagleSourceTable": "dataSubLedgerPosition",
+                "eagleSourceField": "posMarketValueBase",
+                "mmifSection": "3.4",
+                "mmifField": "closing_position",
+                "instrumentType": 4,
+                "codeType": 1,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Derivatives — futures",
+            },
+            {
+                "eagleGlPattern": "1100*",
+                "eagleSourceTable": "dataLedger",
+                "eagleSourceField": "endingBalance",
+                "mmifSection": "3.5",
+                "mmifField": "closing_balance",
+                "instrumentType": None,
+                "codeType": 4,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Cash and margin deposits",
+            },
+            {
+                "eagleGlPattern": "1600*",
+                "eagleSourceTable": "dataSubLedgerPosition",
+                "eagleSourceField": "posMarketValueBase",
+                "mmifSection": "3.4",
+                "mmifField": "closing_position",
+                "instrumentType": None,
+                "codeType": 4,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Reverse repo / securities borrowing",
+            },
+            {
+                "eagleGlPattern": "3100*",
+                "eagleSourceTable": "dataLedger",
+                "eagleSourceField": "endingBalance",
+                "mmifSection": "5.2",
+                "mmifField": "securities_lending",
+                "instrumentType": None,
+                "codeType": 4,
+                "transformation": None,
+                "signConvention": -1,
+                "isReported": True,
+                "notes": "Securities lending obligations",
+            },
+            {
+                "eagleGlPattern": "1300*",
+                "eagleSourceTable": "dataLedger",
+                "eagleSourceField": "endingBalance",
+                "mmifSection": "3.6",
+                "mmifField": "accrued_income",
+                "instrumentType": None,
+                "codeType": 4,
+                "transformation": None,
+                "signConvention": 1,
+                "isReported": True,
+                "notes": "Accrued income — other assets",
+            },
+            {
+                "eagleGlPattern": "3000*",
+                "eagleSourceTable": "dataLedger",
+                "eagleSourceField": "endingBalance",
+                "mmifSection": "5.1",
+                "mmifField": "fund_shares",
+                "instrumentType": None,
+                "codeType": 4,
+                "transformation": None,
+                "signConvention": -1,
+                "isReported": True,
+                "notes": "Fund shares / units issued",
             },
         ],
         "counterpartyEnrichment": {
-            "JPMORGAN_IE": {"sector": "S122", "country": "IE"},
-            "EUROCLEAR": {"sector": "S125", "country": "BE"},
-            "GOLDMAN_SACHS_IE": {"sector": "S122", "country": "IE"},
-            "BLACKROCK_IE": {"sector": "S124", "country": "IE"},
+            "GOLDMAN_SACHS_US": {"sector": "S122", "country": "US"},
+            "MORGAN_STANLEY_US": {"sector": "S122", "country": "US"},
         },
         "investorClassification": {
             "S122": "MFI",
             "S124": "Non-MMF Investment Funds",
-            "S125": "Other Financial Intermediaries",
-            "S128": "Insurance Corporations",
             "S2": "Rest of World",
         },
-        "unmappedAccounts": ["1600*"],
-        "createdAt": "2026-03-01T09:00:00",
-        "updatedAt": "2026-03-10T14:30:00",
+        "unmappedAccounts": [],
+        "createdAt": "2026-03-14T09:00:00",
+        "updatedAt": "2026-03-14T09:00:00",
     }
 
-    mmif_mappings = [mmif_mapping, mmif_mapping_fi, mmif_mapping_mmf, mmif_mapping_ma]
+    mmif_mappings = [mmif_template_ucits, mmif_template_mmf, mmif_template_aif, mmif_template_hedge]
     db[COLLECTIONS["mmifMappingConfigs"]].insert_many(mmif_mappings)
 
-    print(f"  Seeded {len(mmif_events)} MMIF events, {len(mmif_sample_data)} sample data rows, {len(mmif_mappings)} mapping configs")
+    # ── Reconciliation Detail Data ──────────────────────────────
+    mmif_recon_eq = {
+        "eventId": "MMIF-2026-Q1-001",
+        "account": "IE-UCITS-EQ-001",
+        "fundName": "Aria European Equity UCITS",
+        "filingPeriod": "2026Q1",
+        "assetLiabilityRows": [
+            {"account": "1100-0000-0000-0000", "description": "SECURITIES AT VALUE", "category": "asset",
+             "beginBal": 198450000.00, "netActivity": 5230000.00, "endBal": 203680000.00,
+             "netSecValue": 203660000.00, "smaSource": "Positions", "smaValue": 203660000.00,
+             "variance": -20000.00, "status": "break"},
+            {"account": "1110-0000-1123-0000", "description": "EURO CASH", "category": "asset",
+             "beginBal": 12350000.00, "netActivity": -850000.00, "endBal": 11500000.00,
+             "netSecValue": 11500000.00, "smaSource": "Positions", "smaValue": 11500000.00,
+             "variance": 0.00, "status": "match"},
+            {"account": "1110-0000-1044-0000", "description": "GBP CASH", "category": "asset",
+             "beginBal": 3200000.00, "netActivity": 150000.00, "endBal": 3350000.00,
+             "netSecValue": 3350000.00, "smaSource": "Positions", "smaValue": 3350000.00,
+             "variance": 0.00, "status": "match"},
+            {"account": "1110-0000-1108-0000", "description": "USD CASH", "category": "asset",
+             "beginBal": 780000.00, "netActivity": -120000.00, "endBal": 660000.00,
+             "netSecValue": 660000.00, "smaSource": "Positions", "smaValue": 660000.00,
+             "variance": 0.00, "status": "match"},
+            {"account": "1130-0000-0000-0000", "description": "OTHER ASSETS", "category": "asset",
+             "beginBal": 425000.00, "netActivity": -15000.00, "endBal": 410000.00,
+             "netSecValue": 410000.00, "smaSource": "Positions", "smaValue": 410000.00,
+             "variance": 0.00, "status": "match"},
+            {"account": "1200-0000-0000-0000", "description": "CASH (INCOME)", "category": "asset",
+             "beginBal": 26050000.00, "netActivity": 1950000.00, "endBal": 28000000.00,
+             "netSecValue": 28000000.00, "smaSource": "Positions", "smaValue": 28000000.00,
+             "variance": 0.00, "status": "match"},
+            {"account": "1300-0000-0000-0000", "description": "ACCRUED INCOME", "category": "asset",
+             "beginBal": 890000.00, "netActivity": 110000.00, "endBal": 1000000.00,
+             "netSecValue": 1000000.00, "smaSource": "Positions", "smaValue": 1000000.00,
+             "variance": 0.00, "status": "match"},
+            {"account": "2500-0000-0000-0000", "description": "ACCRUED EXPENSE PAYABLE", "category": "liability",
+             "beginBal": 1250000.00, "netActivity": 150000.00, "endBal": 1400000.00,
+             "netSecValue": None, "smaSource": None, "smaValue": None,
+             "variance": None, "status": "na"},
+            {"account": "2710-0000-0000-0000", "description": "SHORT POSITION MKT VALUE", "category": "liability",
+             "beginBal": 0.00, "netActivity": 0.00, "endBal": 0.00,
+             "netSecValue": None, "smaSource": None, "smaValue": None,
+             "variance": None, "status": "na"},
+        ],
+        "capitalRows": [
+            {"account": "3100-0000-0000-0000", "description": "SUBSCRIPTIONS", "beginBal": 180000000.00, "netActivity": -5200000.00, "endBal": 185200000.00},
+            {"account": "3200-0000-0000-0000", "description": "SUBSCRIPTIONS EXCHANGED", "beginBal": None, "netActivity": None, "endBal": None},
+            {"account": "3400-0000-0000-0000", "description": "REDEMPTIONS", "beginBal": -42000000.00, "netActivity": 3100000.00, "endBal": -45100000.00},
+            {"account": "3500-0000-0000-0000", "description": "REDEMPTIONS EXCHANGED", "beginBal": None, "netActivity": None, "endBal": None},
+            {"account": "3650-0000-0000-0000", "description": "PRIOR UNDISTRIBUTED G/L", "beginBal": -8500000.00, "netActivity": None, "endBal": -8500000.00},
+            {"account": "3950-0000-0000-0000", "description": "PRIOR UNDIST. INCOME", "beginBal": 112000000.00, "netActivity": None, "endBal": 112000000.00},
+            {"account": "3991-0000-0000-0000", "description": "DISTRIBUTED INCOME", "beginBal": -1800000.00, "netActivity": 600000.00, "endBal": -2400000.00},
+        ],
+        "shareholderRows": [
+            {"isin": "IE0003CU5OB7", "openPosition": 155200000.00, "issued": 4500000.00, "redeemed": 2100000.00, "closePosition": 157600000.00, "matched": True},
+            {"isin": "IE000HT8G9M6", "openPosition": 42300000.00, "issued": 1200000.00, "redeemed": 800000.00, "closePosition": 42700000.00, "matched": True},
+            {"isin": "IE000MYB0L09", "openPosition": 28500000.00, "issued": 900000.00, "redeemed": 1500000.00, "closePosition": 27900000.00, "matched": True},
+            {"isin": "IE00BD5BCG86", "openPosition": 13700000.00, "issued": 600000.00, "redeemed": 400000.00, "closePosition": 13900000.00, "matched": True},
+        ],
+        "navComparison": {
+            "capitalTotals": 239700000.00,
+            "pnlActivityFYE": 8900000.00,
+            "capitalIncPeriodEnd": 248600000.00,
+            "navFromSMA": 248600000.00,
+            "navFromShareholderPivot": 242100000.00,
+        },
+        "ledgerCrossCheck": {
+            "assets": {"start": 241345000.00, "end": 248600000.00},
+            "liabilities": {"start": 1250000.00, "end": 1400000.00},
+            "capital": {"start": 239700000.00, "end": 241200000.00},
+            "bsDiff": {"start": 395000.00, "end": 6000000.00},
+            "income": {"start": 4200000.00, "end": 5500000.00},
+            "expense": {"start": 520000.00, "end": 680000.00},
+            "netIncome": {"start": 3680000.00, "end": 4820000.00},
+            "rgl": {"start": 850000.00, "end": 420000.00},
+            "urgl": {"start": -4135000.00, "end": 760000.00},
+            "netGL": {"start": -3285000.00, "end": 1180000.00},
+            "totalPnL": {"start": 395000.00, "end": 6000000.00},
+            "tbBalanced": {"start": 0.00, "end": 0.00},
+        },
+    }
+
+    mmif_recon_fi = {
+        "eventId": "MMIF-2026-Q1-001",
+        "account": "IE-UCITS-FI-002",
+        "fundName": "Aria Fixed Income UCITS",
+        "filingPeriod": "2026Q1",
+        "assetLiabilityRows": [
+            {"account": "1100-0000-0000-0000", "description": "SECURITIES AT VALUE", "category": "asset",
+             "beginBal": 156800000.00, "netActivity": 3400000.00, "endBal": 160200000.00,
+             "netSecValue": 160200000.00, "smaSource": "Positions", "smaValue": 160200000.00,
+             "variance": 0.00, "status": "match"},
+            {"account": "1110-0000-1123-0000", "description": "EURO CASH", "category": "asset",
+             "beginBal": 8900000.00, "netActivity": -400000.00, "endBal": 8500000.00,
+             "netSecValue": 8500000.00, "smaSource": "Positions", "smaValue": 8500000.00,
+             "variance": 0.00, "status": "match"},
+            {"account": "1200-0000-0000-0000", "description": "CASH (INCOME)", "category": "asset",
+             "beginBal": 5200000.00, "netActivity": 800000.00, "endBal": 6000000.00,
+             "netSecValue": 6000000.00, "smaSource": "Positions", "smaValue": 6000000.00,
+             "variance": 0.00, "status": "match"},
+            {"account": "1300-0000-0000-0000", "description": "ACCRUED INCOME", "category": "asset",
+             "beginBal": 2100000.00, "netActivity": 300000.00, "endBal": 2400000.00,
+             "netSecValue": 2400000.00, "smaSource": "Positions", "smaValue": 2400000.00,
+             "variance": 0.00, "status": "match"},
+            {"account": "2500-0000-0000-0000", "description": "ACCRUED EXPENSE PAYABLE", "category": "liability",
+             "beginBal": 650000.00, "netActivity": 50000.00, "endBal": 700000.00,
+             "netSecValue": None, "smaSource": None, "smaValue": None,
+             "variance": None, "status": "na"},
+        ],
+        "capitalRows": [
+            {"account": "3100-0000-0000-0000", "description": "SUBSCRIPTIONS", "beginBal": 145000000.00, "netActivity": -2000000.00, "endBal": 147000000.00},
+            {"account": "3400-0000-0000-0000", "description": "REDEMPTIONS", "beginBal": -18000000.00, "netActivity": 1500000.00, "endBal": -19500000.00},
+            {"account": "3950-0000-0000-0000", "description": "PRIOR UNDIST. INCOME", "beginBal": 45350000.00, "netActivity": None, "endBal": 45350000.00},
+            {"account": "3991-0000-0000-0000", "description": "DISTRIBUTED INCOME", "beginBal": -250000.00, "netActivity": 100000.00, "endBal": -350000.00},
+        ],
+        "shareholderRows": [
+            {"isin": "IE000AA11BB2", "openPosition": 95000000.00, "issued": 2500000.00, "redeemed": 1000000.00, "closePosition": 96500000.00, "matched": True},
+            {"isin": "IE000CC33DD4", "openPosition": 77100000.00, "issued": 1500000.00, "redeemed": 2100000.00, "closePosition": 76500000.00, "matched": True},
+        ],
+        "navComparison": {
+            "capitalTotals": 172100000.00,
+            "pnlActivityFYE": 5000000.00,
+            "capitalIncPeriodEnd": 177100000.00,
+            "navFromSMA": 177100000.00,
+            "navFromShareholderPivot": 173000000.00,
+        },
+        "ledgerCrossCheck": {
+            "assets": {"start": 173000000.00, "end": 177100000.00},
+            "liabilities": {"start": 650000.00, "end": 700000.00},
+            "capital": {"start": 172100000.00, "end": 172500000.00},
+            "bsDiff": {"start": 250000.00, "end": 3900000.00},
+            "income": {"start": 3500000.00, "end": 4800000.00},
+            "expense": {"start": 280000.00, "end": 370000.00},
+            "netIncome": {"start": 3220000.00, "end": 4430000.00},
+            "rgl": {"start": 120000.00, "end": 80000.00},
+            "urgl": {"start": -3090000.00, "end": -610000.00},
+            "netGL": {"start": -2970000.00, "end": -530000.00},
+            "totalPnL": {"start": 250000.00, "end": 3900000.00},
+            "tbBalanced": {"start": 0.00, "end": 0.00},
+        },
+    }
+
+    mmif_recon_mmf = {
+        "eventId": "MMIF-2026-Q1-001",
+        "account": "IE-MMF-001",
+        "fundName": "Aria Liquidity MMF",
+        "filingPeriod": "2026Q1",
+        "assetLiabilityRows": [
+            {"account": "1100-0000-0000-0000", "description": "CASH AND BANK BALANCES", "category": "asset",
+             "beginBal": 45000000.00, "netActivity": 2000000.00, "endBal": 47000000.00,
+             "netSecValue": 47000000.00, "smaSource": "Positions", "smaValue": 47000000.00,
+             "variance": 0.00, "status": "match"},
+            {"account": "1110-0000-0000-0000", "description": "OVERNIGHT DEPOSITS", "category": "asset",
+             "beginBal": 28000000.00, "netActivity": -3000000.00, "endBal": 25000000.00,
+             "netSecValue": 24950000.00, "smaSource": "Positions", "smaValue": 24950000.00,
+             "variance": -50000.00, "status": "break"},
+            {"account": "2500-0000-0000-0000", "description": "ACCRUED EXPENSE PAYABLE", "category": "liability",
+             "beginBal": 120000.00, "netActivity": 30000.00, "endBal": 150000.00,
+             "netSecValue": None, "smaSource": None, "smaValue": None,
+             "variance": None, "status": "na"},
+        ],
+        "capitalRows": [
+            {"account": "3100-0000-0000-0000", "description": "SUBSCRIPTIONS", "beginBal": 68000000.00, "netActivity": -1500000.00, "endBal": 69500000.00},
+            {"account": "3400-0000-0000-0000", "description": "REDEMPTIONS", "beginBal": -5000000.00, "netActivity": 500000.00, "endBal": -5500000.00},
+            {"account": "3950-0000-0000-0000", "description": "PRIOR UNDIST. INCOME", "beginBal": 9880000.00, "netActivity": None, "endBal": 9880000.00},
+        ],
+        "shareholderRows": [
+            {"isin": "IE000MMF001A", "openPosition": 48000000.00, "issued": 1200000.00, "redeemed": 500000.00, "closePosition": 48700000.00, "matched": True},
+            {"isin": "IE000MMF002B", "openPosition": 24880000.00, "issued": 800000.00, "redeemed": 1000000.00, "closePosition": 24680000.00, "matched": True},
+        ],
+        "navComparison": {
+            "capitalTotals": 72880000.00,
+            "pnlActivityFYE": -30000.00,
+            "capitalIncPeriodEnd": 72850000.00,
+            "navFromSMA": 71950000.00,
+            "navFromShareholderPivot": 73380000.00,
+        },
+        "ledgerCrossCheck": {
+            "assets": {"start": 73000000.00, "end": 72000000.00},
+            "liabilities": {"start": 120000.00, "end": 150000.00},
+            "capital": {"start": 72880000.00, "end": 73880000.00},
+            "bsDiff": {"start": 0.00, "end": -2030000.00},
+            "income": {"start": 180000.00, "end": 250000.00},
+            "expense": {"start": 60000.00, "end": 80000.00},
+            "netIncome": {"start": 120000.00, "end": 170000.00},
+            "rgl": {"start": 0.00, "end": 0.00},
+            "urgl": {"start": -120000.00, "end": -200000.00},
+            "netGL": {"start": -120000.00, "end": -200000.00},
+            "totalPnL": {"start": 0.00, "end": -30000.00},
+            "tbBalanced": {"start": 0.00, "end": -2000000.00},
+        },
+    }
+
+    mmif_recon_details = [mmif_recon_eq, mmif_recon_fi, mmif_recon_mmf]
+    db[COLLECTIONS["mmifReconciliationDetails"]].insert_many(mmif_recon_details)
+
+    # ── Agent Analysis Seed Data ───────────────────────────────
+    mmif_agent_analysis = {
+        "eventId": "MMIF-2026-Q1-001",
+        "phase": "COMPLETE",
+        "overallConfidence": 100,
+        "rootCauseNarrative": (
+            "# MMIF Reconciliation Analysis Report\n\n"
+            "**Fund:** Aria Global Equity UCITS (IE-UCITS-EQ-001)\n"
+            "**Filing Period:** 2026Q1\n"
+            "**Rule:** VR_001 \u2014 Total Assets Tie-Out (Synthetic Scan)\n\n"
+            "## 1. Summary\n\n"
+            "The reconciliation between Eagle accounting system and MMIF filing shows a "
+            "perfect tie-out with zero variance. Both systems report total assets of 0.00, "
+            "indicating the fund has no assets under management during the 2026Q1 filing period. "
+            "Despite the system flagging \u201cASSET_MISMATCH\u201d as a primary driver, this appears "
+            "to be a false positive given the zero variance result.\n\n"
+            "## 2. Root Cause(s)\n\n"
+            "**Primary Cause:** Fund dormancy or liquidation status\n"
+            "- The fund shows zero assets in both Eagle and MMIF systems, suggesting either:\n"
+            "  - The fund has not yet commenced operations\n"
+            "  - The fund has been fully liquidated\n"
+            "  - The fund is in a dormant state between reporting periods\n\n"
+            "**Secondary Observation:** System alert anomaly\n"
+            "- The \u201cASSET_MISMATCH\u201d flag appears to be a systematic alert that triggers "
+            "regardless of actual variance amounts\n"
+            "- This represents a minor system calibration issue rather than a true "
+            "reconciliation break\n\n"
+            "## 3. Recommended Actions\n\n"
+            "**Immediate Actions:**\n"
+            "1. **Verify fund status** \u2014 Confirm with fund operations whether Aria Global "
+            "Equity UCITS is active, dormant, or liquidated\n"
+            "2. **Document filing rationale** \u2014 Ensure proper documentation exists for "
+            "filing a zero-asset return\n\n"
+            "**Process Improvements:**\n"
+            "1. **System enhancement** \u2014 Request IT to refine the ASSET_MISMATCH alert "
+            "logic to avoid false positives when variance equals zero\n"
+            "2. **Status tracking** \u2014 Implement clearer fund status indicators in the "
+            "reconciliation dashboard to distinguish between active funds with zero assets "
+            "and inactive funds\n\n"
+            "**Filing Decision:** Proceed with filing as all hard blockers are cleared and "
+            "the 100% readiness score confirms data integrity."
+        ),
+        "l0Findings": [
+            {
+                "agentName": "L0_TotalAssets",
+                "description": "Total assets tie-out: Eagle and MMIF both report 248,600,000.00. Zero variance.",
+                "confidence": 1.0,
+                "evidence": {
+                    "eagle_total_assets": 248600000.0,
+                    "mmif_total_assets": 248600000.0,
+                    "variance": 0.0,
+                    "rule": "VR-001",
+                },
+                "recommendedAction": "No action required — perfect tie-out confirmed.",
+            }
+        ],
+        "l1Findings": [
+            {
+                "agentName": "L1_Sections",
+                "description": "Section 3.1 (Equities) variance detected: Eagle 203,680,000 vs MMIF 203,660,000",
+                "confidence": 0.92,
+                "evidence": {
+                    "section": "3.1",
+                    "eagle_value": 203680000.0,
+                    "mmif_value": 203660000.0,
+                    "variance": -20000.0,
+                },
+                "recommendedAction": "Investigate SECURITIES AT VALUE row — likely rounding or late-day pricing adjustment.",
+            }
+        ],
+        "l2Findings": [],
+        "l3Findings": [],
+        "specialistFindings": [],
+        "rootCauses": [
+            {
+                "agent": "L1_Sections",
+                "level": "L1",
+                "description": "Minor variance in Section 3.1 Equities — likely pricing lag between Eagle close and MMIF snapshot.",
+                "confidence": 92,
+            },
+        ],
+        "shouldEscalate": False,
+        "attestationStatus": "CLEARED",
+        "attestationReport": {
+            "attestationId": "ATT-2026-Q1-001",
+            "fundAccount": "IE-UCITS-EQ-001",
+            "filingPeriod": "2026Q1",
+            "totalRules": 15,
+            "passed": 14,
+            "warnings": 1,
+            "failed": 0,
+            "hardFailures": 0,
+            "submissionClearance": True,
+            "readinessScore": 100,
+            "ruleResults": [
+                {"ruleId": "VR-001", "ruleName": "Total Assets Tie-Out", "severity": "HARD", "status": "PASSED", "variance": 0.0, "rootCause": None, "confidence": 100},
+                {"ruleId": "VR-002", "ruleName": "Equity Subtotal Match", "severity": "HARD", "status": "PASSED", "variance": -20000.0, "rootCause": "Minor pricing lag", "confidence": 92},
+                {"ruleId": "VR-003", "ruleName": "Debt Securities Subtotal", "severity": "HARD", "status": "PASSED", "variance": 0.0, "rootCause": None, "confidence": 100},
+                {"ruleId": "VR-004", "ruleName": "Cash & Deposits Match", "severity": "HARD", "status": "PASSED", "variance": 0.0, "rootCause": None, "confidence": 100},
+                {"ruleId": "VR-005", "ruleName": "Other Assets Reconciliation", "severity": "SOFT", "status": "PASSED", "variance": 0.0, "rootCause": None, "confidence": 100},
+                {"ruleId": "VR-006", "ruleName": "NAV Cross-Check", "severity": "HARD", "status": "PASSED", "variance": 0.0, "rootCause": None, "confidence": 100},
+                {"ruleId": "VR-007", "ruleName": "Share Class Reconciliation", "severity": "SOFT", "status": "PASSED", "variance": 0.0, "rootCause": None, "confidence": 100},
+                {"ruleId": "VR-008", "ruleName": "Capital Activity Tie-Out", "severity": "SOFT", "status": "PASSED", "variance": 0.0, "rootCause": None, "confidence": 100},
+                {"ruleId": "VR-009", "ruleName": "P&L Quarter-Only Check", "severity": "SOFT", "status": "PASSED", "variance": 0.0, "rootCause": None, "confidence": 100},
+                {"ruleId": "VR-010", "ruleName": "Trial Balance Integrity", "severity": "HARD", "status": "PASSED", "variance": 0.0, "rootCause": None, "confidence": 100},
+            ],
+        },
+        "pipelineSteps": [
+            {"name": "supervisor_init", "label": "Supervisor Init", "status": "complete", "findingsCount": 0, "duration": 120},
+            {"name": "l0_total_assets", "label": "L0: Total Assets", "status": "complete", "findingsCount": 1, "duration": 340},
+            {"name": "l1_sections", "label": "L1: Sections", "status": "complete", "findingsCount": 1, "duration": 510},
+            {"name": "l2_securities", "label": "L2: Securities", "status": "complete", "findingsCount": 0, "duration": 280},
+            {"name": "l3_movements", "label": "L3: Movements", "status": "complete", "findingsCount": 0, "duration": 190},
+            {"name": "specialists", "label": "Specialists", "status": "complete", "findingsCount": 0, "duration": 150},
+            {"name": "attestation", "label": "Attestation", "status": "complete", "findingsCount": 0, "duration": 90},
+            {"name": "complete", "label": "Complete", "status": "complete", "findingsCount": 0, "duration": 10},
+        ],
+        "createdAt": "2026-03-14T08:15:00.000Z",
+    }
+
+    db[COLLECTIONS["mmifAgentAnalysis"]].delete_many({"eventId": "MMIF-2026-Q1-001"})
+    db[COLLECTIONS["mmifAgentAnalysis"]].insert_one(mmif_agent_analysis)
+
+    print(f"  Seeded {len(mmif_events)} MMIF events, {len(mmif_sample_data)} sample data rows, {len(mmif_mappings)} mapping configs, {len(mmif_recon_details)} reconciliation details, 1 agent analysis")
+
+    # Seed DSL rule definitions for VR-016 to VR-020
+    seed_mmif_dsl_rules(db)
+
+
+def seed_mmif_dsl_rules(db):
+    """Seed DSL versions of all validation rules (VR-001 to VR-020) into mmifValidationRuleDefs."""
+    from datetime import datetime
+    now = datetime.utcnow().isoformat()
+
+    base = {
+        "isDsl": True,
+        "version": 1,
+        "isActive": True,
+        "createdBy": "system",
+        "createdAt": now,
+        "updatedAt": now,
+        "deletedAt": None,
+    }
+
+    dsl_rules = [
+        # ── VR-001 to VR-005: MMIF Return vs Eagle TB (mmifSampleData) ──
+        {
+            **base,
+            "ruleId": "VR_001",
+            "ruleName": "Total Assets Tie-Out",
+            "description": "MMIF Section 4.3 total assets must equal Eagle TB total assets",
+            "severity": "HARD",
+            "tolerance": 0.00,
+            "mmifSection": "4.3",
+            "category": "MMIF_TIEOUT",
+            "dataSource": "mmifSampleData",
+            "lhs": {"label": "Eagle Total Assets", "expr": "fieldValue(sample, 'eagleValue')"},
+            "rhs": {"label": "MMIF Total Assets", "expr": "fieldValue(sample, 'mmifValue')"},
+        },
+        {
+            **base,
+            "ruleId": "VR_002",
+            "ruleName": "Equity Subtotal",
+            "description": "Sum of Section 3.1 must equal TB equity accounts",
+            "severity": "HARD",
+            "tolerance": 0.01,
+            "mmifSection": "3.1",
+            "category": "MMIF_TIEOUT",
+            "dataSource": "mmifSampleData",
+            "lhs": {"label": "Eagle Equity", "expr": "fieldValue(sample, 'eagleValue')"},
+            "rhs": {"label": "MMIF Equity", "expr": "fieldValue(sample, 'mmifValue')"},
+        },
+        {
+            **base,
+            "ruleId": "VR_003",
+            "ruleName": "Debt Subtotal",
+            "description": "Sum of Section 3.2 must equal TB fixed income (clean price)",
+            "severity": "HARD",
+            "tolerance": 0.01,
+            "mmifSection": "3.2",
+            "category": "MMIF_TIEOUT",
+            "dataSource": "mmifSampleData",
+            "lhs": {"label": "Eagle Debt", "expr": "fieldValue(sample, 'eagleValue')"},
+            "rhs": {"label": "MMIF Debt", "expr": "fieldValue(sample, 'mmifValue')"},
+        },
+        {
+            **base,
+            "ruleId": "VR_004",
+            "ruleName": "Cash Subtotal",
+            "description": "Sum of Section 3.5 must equal TB cash/deposit accounts",
+            "severity": "HARD",
+            "tolerance": 0.00,
+            "mmifSection": "3.5",
+            "category": "MMIF_TIEOUT",
+            "dataSource": "mmifSampleData",
+            "lhs": {"label": "Eagle Cash", "expr": "fieldValue(sample, 'eagleValue')"},
+            "rhs": {"label": "MMIF Cash", "expr": "fieldValue(sample, 'mmifValue')"},
+        },
+        {
+            **base,
+            "ruleId": "VR_005",
+            "ruleName": "Derivative Net",
+            "description": "Sum of Section 4.2 must equal TB derivative asset minus liability",
+            "severity": "SOFT",
+            "tolerance": 0.05,
+            "mmifSection": "4.2",
+            "category": "MMIF_TIEOUT",
+            "dataSource": "mmifSampleData",
+            "lhs": {"label": "Eagle Derivatives", "expr": "fieldValue(sample, 'eagleValue')"},
+            "rhs": {"label": "MMIF Derivatives", "expr": "fieldValue(sample, 'mmifValue')"},
+        },
+        # ── VR-006 to VR-009: Position / Security-level checks ──
+        {
+            **base,
+            "ruleId": "VR_006",
+            "ruleName": "Opening = Prior Closing",
+            "description": "Per-security MMIF opening position must match prior quarter closing",
+            "severity": "HARD",
+            "tolerance": 0.00,
+            "mmifSection": None,
+            "category": "POSITION_CHECK",
+            "dataSource": "mmifSampleData",
+            "lhs": {"label": "Eagle Opening", "expr": "fieldValue(sample, 'eagleValue')"},
+            "rhs": {"label": "MMIF Opening", "expr": "fieldValue(sample, 'mmifValue')"},
+        },
+        {
+            **base,
+            "ruleId": "VR_007",
+            "ruleName": "Balance Identity",
+            "description": "Opening + Purchases - Sales + Valuation = Closing per security",
+            "severity": "DERIVED",
+            "tolerance": 0.00,
+            "mmifSection": None,
+            "category": "POSITION_CHECK",
+            "dataSource": "mmifSampleData",
+            "lhs": {"label": "Calculated Closing", "expr": "fieldValue(sample, 'eagleValue')"},
+            "rhs": {"label": "MMIF Closing", "expr": "fieldValue(sample, 'mmifValue')"},
+        },
+        {
+            **base,
+            "ruleId": "VR_008",
+            "ruleName": "Accrued Income",
+            "description": "Section 3.6 or line-level accrued income must equal TB accrued income",
+            "severity": "SOFT",
+            "tolerance": 0.02,
+            "mmifSection": "3.6",
+            "category": "MMIF_TIEOUT",
+            "dataSource": "mmifSampleData",
+            "lhs": {"label": "Eagle Accrued Income", "expr": "fieldValue(sample, 'eagleValue')"},
+            "rhs": {"label": "MMIF Accrued Income", "expr": "fieldValue(sample, 'mmifValue')"},
+        },
+        {
+            **base,
+            "ruleId": "VR_009",
+            "ruleName": "Fund Shares/Units",
+            "description": "Section 5.1 closing shares times NAV per unit must equal TB",
+            "severity": "HARD",
+            "tolerance": 0.01,
+            "mmifSection": "5.1",
+            "category": "MMIF_TIEOUT",
+            "dataSource": "mmifSampleData",
+            "lhs": {"label": "Eagle Fund NAV", "expr": "fieldValue(sample, 'eagleValue')"},
+            "rhs": {"label": "MMIF Fund NAV", "expr": "fieldValue(sample, 'mmifValue')"},
+        },
+        # ── VR-010 to VR-015: P&L / FX / Coverage checks ──
+        {
+            **base,
+            "ruleId": "VR_010",
+            "ruleName": "P&L Quarter-Only",
+            "description": "Section 2 P&L must be quarter-only, not YTD cumulative",
+            "severity": "HARD",
+            "tolerance": 0.01,
+            "mmifSection": "2",
+            "category": "MMIF_TIEOUT",
+            "dataSource": "mmifSampleData",
+            "lhs": {"label": "Eagle Quarter P&L", "expr": "fieldValue(sample, 'eagleValue')"},
+            "rhs": {"label": "MMIF Quarter P&L", "expr": "fieldValue(sample, 'mmifValue')"},
+        },
+        {
+            **base,
+            "ruleId": "VR_011",
+            "ruleName": "FX Consistency",
+            "description": "Quarter-end FX rates applied consistently across all sections",
+            "severity": "SOFT",
+            "tolerance": 0.10,
+            "mmifSection": None,
+            "category": "DATA_QUALITY",
+            "dataSource": "mmifSampleData",
+            "lhs": {"label": "Eagle FX Rate", "expr": "fieldValue(sample, 'eagleValue')"},
+            "rhs": {"label": "MMIF FX Rate", "expr": "fieldValue(sample, 'mmifValue')"},
+        },
+        {
+            **base,
+            "ruleId": "VR_012",
+            "ruleName": "ISIN Coverage",
+            "description": "More than 95% of positions must have valid ISIN codes",
+            "severity": "ADVISORY",
+            "tolerance": 0.0,
+            "mmifSection": None,
+            "category": "DATA_QUALITY",
+            "dataSource": "mmifSampleData",
+            "lhs": {"label": "Eagle ISIN Count", "expr": "fieldValue(sample, 'eagleValue')"},
+            "rhs": {"label": "MMIF ISIN Count", "expr": "fieldValue(sample, 'mmifValue')"},
+        },
+        {
+            **base,
+            "ruleId": "VR_013",
+            "ruleName": "Securities Lending Off-BS",
+            "description": "Section 3.4/5.2 securities must NOT be included in total assets",
+            "severity": "HARD",
+            "tolerance": 0.00,
+            "mmifSection": "3.4",
+            "category": "MMIF_TIEOUT",
+            "dataSource": "mmifSampleData",
+            "lhs": {"label": "Eagle Sec Lending", "expr": "fieldValue(sample, 'eagleValue')"},
+            "rhs": {"label": "MMIF Sec Lending", "expr": "fieldValue(sample, 'mmifValue')"},
+        },
+        {
+            **base,
+            "ruleId": "VR_014",
+            "ruleName": "Short Position Sign",
+            "description": "Short positions must be reported as negative asset values",
+            "severity": "HARD",
+            "tolerance": 0.0,
+            "mmifSection": None,
+            "category": "POSITION_CHECK",
+            "dataSource": "mmifSampleData",
+            "lhs": {"label": "Eagle Short Pos", "expr": "fieldValue(sample, 'eagleValue')"},
+            "rhs": {"label": "MMIF Short Pos", "expr": "fieldValue(sample, 'mmifValue')"},
+        },
+        {
+            **base,
+            "ruleId": "VR_015",
+            "ruleName": "Investor Decomposition",
+            "description": "ΔNAV = valuation change + FX change + net investor flows + net income",
+            "severity": "DERIVED",
+            "tolerance": 0.05,
+            "mmifSection": None,
+            "category": "MMIF_TIEOUT",
+            "dataSource": "mmifSampleData",
+            "lhs": {"label": "Calc NAV Change", "expr": "fieldValue(sample, 'eagleValue')"},
+            "rhs": {"label": "MMIF NAV Change", "expr": "fieldValue(sample, 'mmifValue')"},
+        },
+        # ── VR-016 to VR-020: Ledger Cross Check (mmifLedgerData) ──
+        {
+            **base,
+            "ruleId": "VR_016",
+            "ruleName": "BS Equation Check",
+            "description": "Assets(1xxx) - Liabilities(2xxx) - Capital(3xxx) = BS Diff must reconcile with Total PnL",
+            "severity": "HARD",
+            "tolerance": 0.01,
+            "mmifSection": None,
+            "category": "LEDGER_CROSS_CHECK",
+            "dataSource": "mmifLedgerData",
+            "lhs": {
+                "label": "BS Diff (A-L-C)",
+                "expr": "sumByPrefix(ledger, '1', 'endingBalance') - sumByPrefix(ledger, '2', 'endingBalance') - sumByPrefix(ledger, '3', 'endingBalance')",
+            },
+            "rhs": {
+                "label": "Total PnL",
+                "expr": "(sumByPrefix(ledger, '4', 'endingBalance') - sumByPrefix(ledger, '5', 'endingBalance')) + sumByPrefix(ledger, '6', 'endingBalance')",
+            },
+        },
+        {
+            **base,
+            "ruleId": "VR_017",
+            "ruleName": "Net Income",
+            "description": "Income(4xxx) - Expense(5xxx) = Net Income. GL-derived vs MMIF P&L",
+            "severity": "DERIVED",
+            "tolerance": 0.01,
+            "mmifSection": None,
+            "category": "LEDGER_CROSS_CHECK",
+            "dataSource": "mmifLedgerData",
+            "lhs": {
+                "label": "Net Income (GL)",
+                "expr": "sumByPrefix(ledger, '4', 'endingBalance') - sumByPrefix(ledger, '5', 'endingBalance')",
+            },
+            "rhs": {
+                "label": "Net Income (MMIF)",
+                "expr": "sumByPrefix(ledger, '4', 'endingBalance') - sumByPrefix(ledger, '5', 'endingBalance')",
+            },
+        },
+        {
+            **base,
+            "ruleId": "VR_018",
+            "ruleName": "Net Gains/Losses",
+            "description": "RGL(61xx) + URGL(6xxx excl 61xx) = Net GL. GL-derived vs MMIF return",
+            "severity": "DERIVED",
+            "tolerance": 0.01,
+            "mmifSection": None,
+            "category": "LEDGER_CROSS_CHECK",
+            "dataSource": "mmifLedgerData",
+            "lhs": {
+                "label": "Net GL (GL)",
+                "expr": "sumByPrefix(ledger, '61', 'endingBalance') + sumByPrefixExcl(ledger, '6', '61', 'endingBalance')",
+            },
+            "rhs": {
+                "label": "Net GL (MMIF)",
+                "expr": "sumByPrefix(ledger, '61', 'endingBalance') + sumByPrefixExcl(ledger, '6', '61', 'endingBalance')",
+            },
+        },
+        {
+            **base,
+            "ruleId": "VR_019",
+            "ruleName": "Total PnL",
+            "description": "Net Income + Net GL = Total PnL. Cross-check of income statement components",
+            "severity": "DERIVED",
+            "tolerance": 0.01,
+            "mmifSection": None,
+            "category": "LEDGER_CROSS_CHECK",
+            "dataSource": "mmifLedgerData",
+            "lhs": {
+                "label": "Total PnL (GL)",
+                "expr": "(sumByPrefix(ledger, '4', 'endingBalance') - sumByPrefix(ledger, '5', 'endingBalance')) + sumByPrefix(ledger, '6', 'endingBalance')",
+            },
+            "rhs": {
+                "label": "Total PnL (MMIF)",
+                "expr": "(sumByPrefix(ledger, '4', 'endingBalance') - sumByPrefix(ledger, '5', 'endingBalance')) + sumByPrefix(ledger, '6', 'endingBalance')",
+            },
+        },
+        {
+            **base,
+            "ruleId": "VR_020",
+            "ruleName": "TB Overall Balance",
+            "description": "BS Diff - Total PnL = 0. Master trial balance check. Must balance to zero",
+            "severity": "HARD",
+            "tolerance": 0.00,
+            "mmifSection": None,
+            "category": "LEDGER_CROSS_CHECK",
+            "dataSource": "mmifLedgerData",
+            "lhs": {
+                "label": "BS Diff",
+                "expr": "sumByPrefix(ledger, '1', 'endingBalance') - sumByPrefix(ledger, '2', 'endingBalance') - sumByPrefix(ledger, '3', 'endingBalance')",
+            },
+            "rhs": {
+                "label": "Total PnL",
+                "expr": "(sumByPrefix(ledger, '4', 'endingBalance') - sumByPrefix(ledger, '5', 'endingBalance')) + sumByPrefix(ledger, '6', 'endingBalance')",
+            },
+        },
+    ]
+
+    # Upsert to avoid duplicates on re-seed
+    coll = db[COLLECTIONS["mmifValidationRuleDefs"]]
+    for rule in dsl_rules:
+        coll.update_one(
+            {"ruleId": rule["ruleId"]},
+            {"$set": rule},
+            upsert=True,
+        )
+    print(f"  Seeded {len(dsl_rules)} DSL rule definitions (VR-001 to VR-020)")
 
 
 if __name__ == "__main__":

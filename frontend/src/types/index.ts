@@ -93,6 +93,11 @@ export interface MmifEvent {
   breakTrend7d?: number[];
 }
 
+export interface DslExpressionSide {
+  label: string;
+  expr: string;
+}
+
 export interface MmifValidationRule {
   ruleId: string;
   ruleName: string;
@@ -100,6 +105,190 @@ export interface MmifValidationRule {
   severity: MmifSeverity;
   tolerance: number;
   mmifSection?: string;
+  category?: string;
+  // DSL fields (present when isDsl=true)
+  isDsl?: boolean;
+  dataSource?: string;
+  lhs?: DslExpressionSide;
+  rhs?: DslExpressionSide;
+  version?: number;
+  isActive?: boolean;
+  createdBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  deletedAt?: string | null;
+}
+
+// ── MMIF Mapping Configuration ─────────────────────────────
+
+export interface MmifFieldMapping {
+  eagleGlPattern: string;
+  eagleSourceTable: string;
+  eagleSourceField: string;
+  mmifSection: string;
+  mmifField: string;
+  instrumentType?: number | null;
+  codeType: number;
+  transformation?: string | null;
+  signConvention: number;
+  isReported: boolean;
+  notes: string;
+}
+
+export interface MmifMappingConfig {
+  configId: string;
+  eventId: string;
+  account: string;
+  fundType: MmifFundType;
+  baseCurrency: string;
+  mappings: MmifFieldMapping[];
+  counterpartyEnrichment: Record<string, { sector: string; country: string }>;
+  investorClassification: Record<string, string>;
+  unmappedAccounts: string[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface MmifMappingTemplateSummary {
+  fundType: MmifFundType;
+  description: string;
+  mappingCount: number;
+}
+
+export interface MmifMappingTemplate {
+  fundType: MmifFundType;
+  description: string;
+  mappings: MmifFieldMapping[];
+  counterpartyEnrichment: Record<string, { sector: string; country: string }>;
+  investorClassification: Record<string, string>;
+}
+
+export const MMIF_SECTIONS: Record<string, string> = {
+  '2': 'P&L',
+  '3.1': 'Equities',
+  '3.2': 'Debt Securities',
+  '3.3': 'Property',
+  '3.4': 'Securities Borrowing / Derivatives',
+  '3.5': 'Cash & Deposits',
+  '3.6': 'Other Assets',
+  '4.1': 'Overdrafts',
+  '4.2': 'Derivatives (Liabilities)',
+  '4.3': 'Total Assets',
+  '5.1': 'Fund Shares',
+  '5.2': 'Securities Lending',
+  '5.3': 'Loans',
+  '5.4': 'Other Liabilities',
+};
+
+export const INSTRUMENT_TYPES: Record<number, string> = {
+  1: 'Equity', 2: 'Debt', 3: 'Property', 4: 'Derivatives', 5: 'Cash/Deposits',
+};
+
+export const CODE_TYPES: Record<number, string> = {
+  1: 'ISIN', 2: 'SEDOL', 3: 'CUSIP', 4: 'Internal', 5: 'Other',
+};
+
+export const SOURCE_TABLES = [
+  'dataSubLedgerPosition', 'dataLedger', 'dataDailyTransactions', 'refSecurity',
+];
+
+// ── MMIF Reconciliation Detail Types ────────────────────────
+
+export type ReconRowStatus = 'match' | 'break' | 'review' | 'na';
+
+export interface MmifReconAccountRow {
+  account: string;
+  description: string;
+  category: 'asset' | 'liability';
+  beginBal: number | null;
+  netActivity: number | null;
+  endBal: number | null;
+  netSecValue: number | null;
+  smaSource: string | null;
+  smaValue: number | null;
+  variance: number | null;
+  status: ReconRowStatus;
+}
+
+export interface MmifReconCapitalRow {
+  account: string;
+  description: string;
+  beginBal: number | null;
+  netActivity: number | null;
+  endBal: number | null;
+}
+
+export interface MmifReconShareholderRow {
+  isin: string;
+  openPosition: number | null;
+  issued: number | null;
+  redeemed: number | null;
+  closePosition: number | null;
+  matched: boolean;
+}
+
+export interface MmifReconLedgerItem {
+  start: number;
+  end: number;
+}
+
+export interface MmifReconNavComparison {
+  capitalTotals: number;
+  pnlActivityFYE: number;
+  capitalIncPeriodEnd: number;
+  navFromSMA: number;
+  navFromShareholderPivot: number;
+}
+
+export interface MmifReconLedgerCrossCheck {
+  assets: MmifReconLedgerItem;
+  liabilities: MmifReconLedgerItem;
+  capital: MmifReconLedgerItem;
+  bsDiff: MmifReconLedgerItem;
+  income: MmifReconLedgerItem;
+  expense: MmifReconLedgerItem;
+  netIncome: MmifReconLedgerItem;
+  rgl: MmifReconLedgerItem;
+  urgl: MmifReconLedgerItem;
+  netGL: MmifReconLedgerItem;
+  totalPnL: MmifReconLedgerItem;
+  tbBalanced: MmifReconLedgerItem;
+}
+
+export interface MmifReconciliationDetail {
+  eventId: string;
+  account: string;
+  fundName: string;
+  filingPeriod: string;
+  assetLiabilityRows: MmifReconAccountRow[];
+  capitalRows: MmifReconCapitalRow[];
+  shareholderRows: MmifReconShareholderRow[];
+  navComparison: MmifReconNavComparison | null;
+  ledgerCrossCheck: MmifReconLedgerCrossCheck | null;
+}
+
+export interface CelFunctionDoc {
+  name: string;
+  signature: string;
+  description: string;
+  example: string;
+  category: string;
+}
+
+export interface DslExprValidateResult {
+  isValid: boolean;
+  error: string | null;
+}
+
+export interface DslRuleTestResult {
+  lhsValue: number;
+  rhsValue: number;
+  variance: number;
+  status: string;
+  lhsLabel: string;
+  rhsLabel: string;
+  rowCount?: number;
+  error: string | null;
 }
 
 export interface MmifValidationResult {
@@ -136,6 +325,14 @@ export interface MmifBreakRecord {
   variance: number;
   tolerance: number;
   state: BreakState;
+}
+
+export interface MmifDrillDownContext {
+  ruleId: string;
+  ruleName: string;
+  mmifSection?: string;
+  fundAccount?: string;
+  fundName?: string;
 }
 
 export interface MmifSummary {

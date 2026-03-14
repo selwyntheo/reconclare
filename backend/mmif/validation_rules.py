@@ -1,8 +1,8 @@
 """
-MMIF Validation Rules VR-001 through VR-015.
+MMIF Validation Rules VR-001 through VR-020.
 
-Each rule validates a specific aspect of the MMIF regulatory return
-against Eagle's trial balance data.
+VR-001 to VR-015: MMIF Return vs Eagle TB tie-out rules.
+VR-016 to VR-020: Ledger Cross Check / Trial Balance rules.
 """
 from db.schemas import MmifSeverity, MmifValidationResultDoc, ValidationResultStatus
 
@@ -130,6 +130,52 @@ MMIF_VALIDATION_RULES = [
         "tolerance": 0.05,
         "mmifSection": None,
     },
+    # ── Ledger Cross Check Rules ─────────────────────────────────
+    {
+        "ruleId": "VR_016",
+        "ruleName": "BS Equation Check",
+        "description": "Assets(1xxx) - Liabilities(2xxx) - Capital(3xxx) = BS Diff must reconcile with MMIF return",
+        "severity": MmifSeverity.HARD,
+        "tolerance": 0.01,
+        "mmifSection": None,
+        "category": "LEDGER_CROSS_CHECK",
+    },
+    {
+        "ruleId": "VR_017",
+        "ruleName": "Net Income",
+        "description": "Income(4xxx) - Expense(5xxx) = Net Income. GL-derived vs MMIF P&L",
+        "severity": MmifSeverity.DERIVED,
+        "tolerance": 0.01,
+        "mmifSection": None,
+        "category": "LEDGER_CROSS_CHECK",
+    },
+    {
+        "ruleId": "VR_018",
+        "ruleName": "Net Gains/Losses",
+        "description": "RGL(61xx) + URGL(6xxx excl 61xx) = Net GL. GL-derived vs MMIF return",
+        "severity": MmifSeverity.DERIVED,
+        "tolerance": 0.01,
+        "mmifSection": None,
+        "category": "LEDGER_CROSS_CHECK",
+    },
+    {
+        "ruleId": "VR_019",
+        "ruleName": "Total PnL",
+        "description": "Net Income + Net GL = Total PnL. Cross-check of income statement components",
+        "severity": MmifSeverity.DERIVED,
+        "tolerance": 0.01,
+        "mmifSection": None,
+        "category": "LEDGER_CROSS_CHECK",
+    },
+    {
+        "ruleId": "VR_020",
+        "ruleName": "TB Overall Balance",
+        "description": "BS Diff - Total PnL = 0. Master trial balance check. Must balance to zero",
+        "severity": MmifSeverity.HARD,
+        "tolerance": 0.00,
+        "mmifSection": None,
+        "category": "LEDGER_CROSS_CHECK",
+    },
 ]
 
 
@@ -137,6 +183,8 @@ MMIF_CHECK_SUITE_OPTIONS = [
     {"value": rule["ruleId"], "label": f'{rule["ruleId"].replace("_", "-")}: {rule["ruleName"]}'}
     for rule in MMIF_VALIDATION_RULES
 ]
+
+LEDGER_CROSSCHECK_RULES = {"VR_016", "VR_017", "VR_018", "VR_019", "VR_020"}
 
 
 def get_rule_definition(rule_id: str) -> dict:
@@ -155,12 +203,14 @@ def evaluate_rule(
     lhs_value: float,
     rhs_label: str,
     rhs_value: float,
+    rule_override: dict = None,
 ) -> MmifValidationResultDoc:
     """
     Evaluate a single MMIF validation rule.
     Returns a result doc with pass/fail status based on tolerance.
+    If rule_override is provided, uses it instead of the hardcoded rule definition.
     """
-    rule = get_rule_definition(rule_id)
+    rule = rule_override if rule_override else get_rule_definition(rule_id)
     variance = abs(lhs_value - rhs_value)
     tolerance = rule["tolerance"]
 

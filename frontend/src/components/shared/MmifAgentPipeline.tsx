@@ -25,6 +25,7 @@ import SkipNextIcon from '@mui/icons-material/SkipNext';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import SpeedIcon from '@mui/icons-material/Speed';
 import { MmifAgentAnalysis, MmifPipelineStep } from '../../types';
+import MarkdownRenderer from './MarkdownRenderer';
 
 interface MmifAgentPipelineProps {
   analysis: MmifAgentAnalysis | null;
@@ -256,13 +257,14 @@ const MmifAgentPipeline: React.FC<MmifAgentPipelineProps> = ({ analysis, loading
 
             {/* Root Cause Narrative */}
             {analysis.rootCauseNarrative && (
-              <Box sx={{ p: 1.5, bgcolor: alpha(theme.palette.primary.main, 0.04), borderRadius: 1, borderLeft: `3px solid ${theme.palette.primary.main}` }}>
-                <Typography variant="caption" fontWeight={700} textTransform="uppercase" color="primary" display="block" sx={{ mb: 0.5 }}>
-                  Root Cause Narrative
-                </Typography>
-                <Typography variant="body2" sx={{ lineHeight: 1.6 }}>
-                  {analysis.rootCauseNarrative}
-                </Typography>
+              <Box sx={{ p: 2, bgcolor: alpha(theme.palette.primary.main, 0.03), borderRadius: 2, border: `1px solid ${theme.palette.divider}` }}>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+                  <SmartToyIcon fontSize="small" color="primary" />
+                  <Typography variant="caption" fontWeight={700} textTransform="uppercase" color="primary">
+                    AI Analysis Report
+                  </Typography>
+                </Stack>
+                <MarkdownRenderer content={analysis.rootCauseNarrative} />
               </Box>
             )}
 

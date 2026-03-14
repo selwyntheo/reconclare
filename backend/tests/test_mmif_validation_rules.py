@@ -1,6 +1,7 @@
 """
-Tests for MMIF Validation Rules VR-001 through VR-015.
+Tests for MMIF Validation Rules VR-001 through VR-020.
 Validates rule definitions, evaluate_rule logic, severities, tolerances, and section mappings.
+Includes VR-016 to VR-020 Ledger Cross Check rules.
 """
 import sys
 sys.path.insert(0, "/Volumes/D/Projects/ReconClareAI/backend")
@@ -20,14 +21,14 @@ from mmif.validation_rules import (
 # =============================================================================
 
 class TestRuleDefinitions:
-    """Verify all 15 MMIF validation rules are correctly defined."""
+    """Verify all 20 MMIF validation rules are correctly defined."""
 
-    def test_fifteen_rules_defined(self):
-        assert len(MMIF_VALIDATION_RULES) == 15
+    def test_twenty_rules_defined(self):
+        assert len(MMIF_VALIDATION_RULES) == 20
 
     def test_all_rule_ids_present(self):
         rule_ids = {r["ruleId"] for r in MMIF_VALIDATION_RULES}
-        expected = {f"VR_{str(i).zfill(3)}" for i in range(1, 16)}
+        expected = {f"VR_{str(i).zfill(3)}" for i in range(1, 21)}
         assert rule_ids == expected
 
     def test_each_rule_has_required_fields(self):
@@ -52,6 +53,11 @@ class TestRuleDefinitions:
         ("VR_013", MmifSeverity.HARD),
         ("VR_014", MmifSeverity.HARD),
         ("VR_015", MmifSeverity.DERIVED),
+        ("VR_016", MmifSeverity.HARD),
+        ("VR_017", MmifSeverity.DERIVED),
+        ("VR_018", MmifSeverity.DERIVED),
+        ("VR_019", MmifSeverity.DERIVED),
+        ("VR_020", MmifSeverity.HARD),
     ])
     def test_rule_severity(self, rule_id, expected_severity):
         rule = get_rule_definition(rule_id)
@@ -73,6 +79,11 @@ class TestRuleDefinitions:
         ("VR_013", 0.00),
         ("VR_014", 0.0),
         ("VR_015", 0.05),
+        ("VR_016", 0.01),
+        ("VR_017", 0.01),
+        ("VR_018", 0.01),
+        ("VR_019", 0.01),
+        ("VR_020", 0.00),
     ])
     def test_rule_tolerance(self, rule_id, expected_tolerance):
         rule = get_rule_definition(rule_id)
@@ -94,6 +105,11 @@ class TestRuleDefinitions:
         ("VR_013", "3.4"),
         ("VR_014", None),
         ("VR_015", None),
+        ("VR_016", None),
+        ("VR_017", None),
+        ("VR_018", None),
+        ("VR_019", None),
+        ("VR_020", None),
     ])
     def test_rule_mmif_section(self, rule_id, expected_section):
         rule = get_rule_definition(rule_id)
@@ -130,8 +146,8 @@ class TestGetRuleDefinition:
 
 class TestCheckSuiteOptions:
 
-    def test_has_fifteen_options(self):
-        assert len(MMIF_CHECK_SUITE_OPTIONS) == 15
+    def test_has_twenty_options(self):
+        assert len(MMIF_CHECK_SUITE_OPTIONS) == 20
 
     def test_each_option_has_value_and_label(self):
         for opt in MMIF_CHECK_SUITE_OPTIONS:
@@ -140,7 +156,7 @@ class TestCheckSuiteOptions:
 
     def test_values_are_rule_ids(self):
         values = {o["value"] for o in MMIF_CHECK_SUITE_OPTIONS}
-        expected = {f"VR_{str(i).zfill(3)}" for i in range(1, 16)}
+        expected = {f"VR_{str(i).zfill(3)}" for i in range(1, 21)}
         assert values == expected
 
     def test_labels_have_readable_format(self):
@@ -268,3 +284,67 @@ class TestEvaluateRule:
     def test_result_no_mmif_section(self):
         result = self._eval("VR_006", 100.0, 100.0)
         assert result.mmifSection is None
+
+
+# =============================================================================
+# Ledger Cross Check Rules (VR-016 to VR-020)
+# =============================================================================
+
+class TestLedgerCrossCheckRules:
+    """Test VR-016 through VR-020 ledger cross-check rule evaluation."""
+
+    def _eval(self, rule_id, lhs, rhs):
+        return evaluate_rule(
+            rule_id=rule_id,
+            fund_account="IE000001",
+            fund_name="Test Fund",
+            lhs_label="LHS",
+            lhs_value=lhs,
+            rhs_label="RHS",
+            rhs_value=rhs,
+        )
+
+    def test_vr016_pass_when_bs_matches(self):
+        result = self._eval("VR_016", 6_000_000.0, 6_000_000.0)
+        assert result.status == ValidationResultStatus.PASSED
+        assert result.breakCount == 0
+
+    def test_vr016_fail_when_bs_mismatches(self):
+        result = self._eval("VR_016", 5_500_000.0, 6_000_000.0)
+        assert result.status == ValidationResultStatus.FAILED
+        assert result.breakCount == 1
+
+    def test_vr017_derived_pass(self):
+        result = self._eval("VR_017", 3_300_000.0, 3_300_000.0)
+        assert result.status == ValidationResultStatus.PASSED
+        assert result.severity == MmifSeverity.DERIVED
+
+    def test_vr018_derived_pass(self):
+        result = self._eval("VR_018", 2_700_000.0, 2_700_000.0)
+        assert result.status == ValidationResultStatus.PASSED
+        assert result.severity == MmifSeverity.DERIVED
+
+    def test_vr019_derived_pass(self):
+        result = self._eval("VR_019", 6_000_000.0, 6_000_000.0)
+        assert result.status == ValidationResultStatus.PASSED
+        assert result.severity == MmifSeverity.DERIVED
+
+    def test_vr020_pass_when_balanced(self):
+        result = self._eval("VR_020", 6_000_000.0, 6_000_000.0)
+        assert result.status == ValidationResultStatus.PASSED
+
+    def test_vr020_fail_when_unbalanced(self):
+        result = self._eval("VR_020", 5_500_000.0, 6_000_000.0)
+        assert result.status == ValidationResultStatus.FAILED
+        assert result.breakCount == 1
+        assert result.variance == 500_000.0
+
+    def test_vr020_has_correct_rule_name(self):
+        result = self._eval("VR_020", 0.0, 0.0)
+        assert result.ruleName == "TB Overall Balance"
+
+    def test_all_crosscheck_rules_have_category(self):
+        from mmif.validation_rules import LEDGER_CROSSCHECK_RULES
+        for rule in MMIF_VALIDATION_RULES:
+            if rule["ruleId"] in LEDGER_CROSSCHECK_RULES:
+                assert rule.get("category") == "LEDGER_CROSS_CHECK"

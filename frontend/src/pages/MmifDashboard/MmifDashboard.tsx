@@ -466,7 +466,7 @@ const MmifDashboard: React.FC = () => {
               <Typography variant="body2">{runModalEvent?.filingPeriod ? formatFilingPeriod(runModalEvent.filingPeriod) : ''}</Typography>
             </Box>
             <Box>
-              <Typography variant="caption" fontWeight={600}>Validation Rules (VR-001 to VR-015)</Typography>
+              <Typography variant="caption" fontWeight={600}>Validation Rules (VR-001 to VR-020)</Typography>
               <FormGroup sx={{ mt: 0.5, maxHeight: 300, overflow: 'auto' }}>
                 {checkSuiteOptions.map((opt) => (
                   <FormControlLabel

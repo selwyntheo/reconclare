@@ -342,6 +342,151 @@ def cel_flatten(lst):
     return celtypes.ListType(result)
 
 
+# Accounting / Ledger Functions
+
+def cel_sumByPrefix(rows, prefix, field):
+    """Sum a numeric field across rows where glAccountNumber starts with prefix."""
+    prefix_str = str(prefix)
+    field_str = str(field)
+    total = 0.0
+    for row in rows:
+        gl = ""
+        if isinstance(row, celtypes.MapType):
+            gl_key = celtypes.StringType("glAccountNumber")
+            gl_val = row.get(gl_key)
+            if gl_val is not None:
+                gl = str(gl_val)
+            if gl.startswith(prefix_str):
+                field_key = celtypes.StringType(field_str)
+                val = row.get(field_key)
+                if val is not None:
+                    total += float(val)
+        elif isinstance(row, dict):
+            gl = str(row.get("glAccountNumber", ""))
+            if gl.startswith(prefix_str):
+                total += float(row.get(field_str, 0))
+    return celtypes.DoubleType(total)
+
+
+def cel_sumByPrefixExcl(rows, prefix, exclude_prefix, field):
+    """Sum a field where glAccountNumber starts with prefix but NOT excludePrefix."""
+    prefix_str = str(prefix)
+    excl_str = str(exclude_prefix)
+    field_str = str(field)
+    total = 0.0
+    for row in rows:
+        gl = ""
+        if isinstance(row, celtypes.MapType):
+            gl_key = celtypes.StringType("glAccountNumber")
+            gl_val = row.get(gl_key)
+            if gl_val is not None:
+                gl = str(gl_val)
+            if gl.startswith(prefix_str) and not gl.startswith(excl_str):
+                field_key = celtypes.StringType(field_str)
+                val = row.get(field_key)
+                if val is not None:
+                    total += float(val)
+        elif isinstance(row, dict):
+            gl = str(row.get("glAccountNumber", ""))
+            if gl.startswith(prefix_str) and not gl.startswith(excl_str):
+                total += float(row.get(field_str, 0))
+    return celtypes.DoubleType(total)
+
+
+def cel_countByPrefix(rows, prefix):
+    """Count rows where glAccountNumber starts with prefix."""
+    prefix_str = str(prefix)
+    count = 0
+    for row in rows:
+        gl = ""
+        if isinstance(row, celtypes.MapType):
+            gl_key = celtypes.StringType("glAccountNumber")
+            gl_val = row.get(gl_key)
+            if gl_val is not None:
+                gl = str(gl_val)
+        elif isinstance(row, dict):
+            gl = str(row.get("glAccountNumber", ""))
+        if gl.startswith(prefix_str):
+            count += 1
+    return celtypes.IntType(count)
+
+
+def cel_filterByPrefix(rows, prefix):
+    """Filter rows where glAccountNumber starts with prefix."""
+    prefix_str = str(prefix)
+    result = []
+    for row in rows:
+        gl = ""
+        if isinstance(row, celtypes.MapType):
+            gl_key = celtypes.StringType("glAccountNumber")
+            gl_val = row.get(gl_key)
+            if gl_val is not None:
+                gl = str(gl_val)
+        elif isinstance(row, dict):
+            gl = str(row.get("glAccountNumber", ""))
+        if gl.startswith(prefix_str):
+            result.append(row)
+    return celtypes.ListType(result)
+
+
+def cel_fieldValue(rows, field):
+    """Return a single field value from the first row of a list.
+
+    Useful for data sources that return a single matching document
+    (e.g., mmifSampleData filtered by account + filingPeriod + ruleId).
+    """
+    field_str = str(field)
+    for row in rows:
+        if isinstance(row, celtypes.MapType):
+            key = celtypes.StringType(field_str)
+            val = row.get(key)
+            if val is not None:
+                return celtypes.DoubleType(float(val))
+        elif isinstance(row, dict):
+            val = row.get(field_str)
+            if val is not None:
+                return celtypes.DoubleType(float(val))
+    return celtypes.DoubleType(0.0)
+
+
+def cel_sumField(rows, field):
+    """Sum a numeric field across all rows."""
+    field_str = str(field)
+    total = 0.0
+    for row in rows:
+        if isinstance(row, celtypes.MapType):
+            key = celtypes.StringType(field_str)
+            val = row.get(key)
+            if val is not None:
+                total += float(val)
+        elif isinstance(row, dict):
+            val = row.get(field_str)
+            if val is not None:
+                total += float(val)
+    return celtypes.DoubleType(total)
+
+
+def cel_sumWhere(rows, field, condition_field, condition_value):
+    """Sum a field where conditionField equals conditionValue."""
+    field_str = str(field)
+    cond_field_str = str(condition_field)
+    cond_val_str = str(condition_value)
+    total = 0.0
+    for row in rows:
+        if isinstance(row, celtypes.MapType):
+            cond_key = celtypes.StringType(cond_field_str)
+            cond_val = row.get(cond_key)
+            if cond_val is not None and str(cond_val) == cond_val_str:
+                field_key = celtypes.StringType(field_str)
+                val = row.get(field_key)
+                if val is not None:
+                    total += float(val)
+        elif isinstance(row, dict):
+            if str(row.get(cond_field_str, "")) == cond_val_str:
+                total += float(row.get(field_str, 0))
+    return celtypes.DoubleType(total)
+
+
 # ── Function Registry ─────────────────────────────────────────────
 
 CUSTOM_FUNCTIONS: Dict[str, Callable] = {
@@ -378,6 +523,14 @@ CUSTOM_FUNCTIONS: Dict[str, Callable] = {
     "nullIf": cel_nullIf,
     "toList": cel_toList,
     "flatten": cel_flatten,
+    # Accounting / Ledger
+    "sumByPrefix": cel_sumByPrefix,
+    "sumByPrefixExcl": cel_sumByPrefixExcl,
+    "countByPrefix": cel_countByPrefix,
+    "filterByPrefix": cel_filterByPrefix,
+    "sumWhere": cel_sumWhere,
+    "fieldValue": cel_fieldValue,
+    "sumField": cel_sumField,
 }
 
 
@@ -443,12 +596,34 @@ FUNCTION_DOCS = [
      "description": "Wrap scalar in single-element list", "example": "toList('item')", "category": "coercion"},
     {"name": "flatten", "signature": "(list<list>) -> list",
      "description": "Flatten nested lists", "example": "flatten([['a'], ['b']])", "category": "coercion"},
+    # Accounting / Ledger
+    {"name": "sumByPrefix", "signature": "(list<map>, string, string) -> double",
+     "description": "Sum a field across rows where glAccountNumber starts with prefix",
+     "example": "sumByPrefix(ledger, '1', 'endingBalance')", "category": "accounting"},
+    {"name": "sumByPrefixExcl", "signature": "(list<map>, string, string, string) -> double",
+     "description": "Sum a field where glAccountNumber starts with prefix but NOT excludePrefix",
+     "example": "sumByPrefixExcl(ledger, '6', '61', 'endingBalance')", "category": "accounting"},
+    {"name": "countByPrefix", "signature": "(list<map>, string) -> int",
+     "description": "Count rows where glAccountNumber starts with prefix",
+     "example": "countByPrefix(ledger, '1')", "category": "accounting"},
+    {"name": "filterByPrefix", "signature": "(list<map>, string) -> list<map>",
+     "description": "Filter rows where glAccountNumber starts with prefix",
+     "example": "filterByPrefix(ledger, '4')", "category": "accounting"},
+    {"name": "sumWhere", "signature": "(list<map>, string, string, string) -> double",
+     "description": "Sum a field where conditionField equals conditionValue",
+     "example": "sumWhere(ledger, 'endingBalance', 'glCategory', 'ASSETS')", "category": "accounting"},
+    {"name": "fieldValue", "signature": "(list<map>, string) -> double",
+     "description": "Return a single field value from the first row (for single-document data sources)",
+     "example": "fieldValue(sample, 'eagleValue')", "category": "accounting"},
+    {"name": "sumField", "signature": "(list<map>, string) -> double",
+     "description": "Sum a numeric field across all rows",
+     "example": "sumField(sample, 'marketValue')", "category": "accounting"},
 ]
 
 
 # ── Allowed variable roots for safety check ───────────────────────
 
-ALLOWED_ROOTS = {"src", "rowIndex", "meta", "params", "lookups"}
+ALLOWED_ROOTS = {"src", "rowIndex", "meta", "params", "lookups", "ledger", "sample"}
 
 
 # ── CelEvaluator Class ───────────────────────────────────────────

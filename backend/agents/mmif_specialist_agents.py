@@ -668,10 +668,12 @@ class MmifAttestationAgent(MmifBaseAgent):
     - Summarize outstanding issues for regulatory submission
     """
 
+    # Default rule sets used as fallback when severity is not in break data
     HARD_BLOCK_RULES = {"VR_001", "VR_002", "VR_003", "VR_004",
                         "VR_006", "VR_007", "VR_009", "VR_010",
-                        "VR_013", "VR_014"}
-    SOFT_WARN_RULES = {"VR_005", "VR_008", "VR_011", "VR_015"}
+                        "VR_013", "VR_014", "VR_016", "VR_020"}
+    SOFT_WARN_RULES = {"VR_005", "VR_008", "VR_011", "VR_015",
+                       "VR_017", "VR_018", "VR_019"}
     ADVISORY_RULES = {"VR_012"}
 
     def __init__(self):
@@ -694,16 +696,18 @@ class MmifAttestationAgent(MmifBaseAgent):
 
         for b in state.all_breaks_for_event:
             rule_id = b.get("ruleId", "")
+            severity = b.get("severity", "")
             item = {
                 "rule_id": rule_id,
                 "rule_name": b.get("ruleName", ""),
-                "severity": b.get("severity", ""),
+                "severity": severity,
                 "variance": b.get("variance", 0.0),
                 "fund_account": b.get("fundAccount", ""),
             }
-            if rule_id in self.HARD_BLOCK_RULES:
+            # Classify by severity field first, fall back to hardcoded sets
+            if severity == "HARD" or (not severity and rule_id in self.HARD_BLOCK_RULES):
                 blockers.append(item)
-            elif rule_id in self.SOFT_WARN_RULES:
+            elif severity in ("SOFT", "DERIVED") or (not severity and rule_id in self.SOFT_WARN_RULES):
                 warnings.append(item)
             # ADVISORY — skip for clearance determination
 

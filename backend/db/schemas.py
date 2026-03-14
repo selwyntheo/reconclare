@@ -69,6 +69,11 @@ class MmifCheckType(str, Enum):
     VR_013 = "VR_013"  # Sec Lending Off-BS
     VR_014 = "VR_014"  # Short Position Sign
     VR_015 = "VR_015"  # Investor Decomposition
+    VR_016 = "VR_016"  # BS Equation Check
+    VR_017 = "VR_017"  # Net Income
+    VR_018 = "VR_018"  # Net Gains/Losses
+    VR_019 = "VR_019"  # Total PnL
+    VR_020 = "VR_020"  # TB Overall Balance
 
 
 class MmifSeverity(str, Enum):
@@ -828,6 +833,84 @@ class MmifMappingConfigDoc(BaseModel):
     updatedAt: Optional[str] = None
 
 
+class MmifReconAccountRow(BaseModel):
+    """Single GL account row in reconciliation detail (Accounting vs MMIF)."""
+    account: str
+    description: str
+    category: str  # "asset" or "liability"
+    beginBal: Optional[float] = None
+    netActivity: Optional[float] = None
+    endBal: Optional[float] = None
+    netSecValue: Optional[float] = None
+    smaSource: Optional[str] = None
+    smaValue: Optional[float] = None
+    variance: Optional[float] = None
+    status: str = "na"  # match, break, review, na
+
+
+class MmifReconCapitalRow(BaseModel):
+    """Single capital account row in reconciliation detail."""
+    account: str
+    description: str
+    beginBal: Optional[float] = None
+    netActivity: Optional[float] = None
+    endBal: Optional[float] = None
+
+
+class MmifReconShareholderRow(BaseModel):
+    """Shareholder pivot row by ISIN."""
+    isin: str
+    openPosition: Optional[float] = None
+    issued: Optional[float] = None
+    redeemed: Optional[float] = None
+    closePosition: Optional[float] = None
+    matched: bool = True
+
+
+class MmifReconLedgerItem(BaseModel):
+    """Single start/end pair for ledger cross-check."""
+    start: float
+    end: float
+
+
+class MmifReconNavComparison(BaseModel):
+    """NAV tie-out comparison across three sources."""
+    capitalTotals: float
+    pnlActivityFYE: float
+    capitalIncPeriodEnd: float
+    navFromSMA: float
+    navFromShareholderPivot: float
+
+
+class MmifReconLedgerCrossCheck(BaseModel):
+    """Full ledger cross-check grid."""
+    assets: MmifReconLedgerItem
+    liabilities: MmifReconLedgerItem
+    capital: MmifReconLedgerItem
+    bsDiff: MmifReconLedgerItem
+    income: MmifReconLedgerItem
+    expense: MmifReconLedgerItem
+    netIncome: MmifReconLedgerItem
+    rgl: MmifReconLedgerItem
+    urgl: MmifReconLedgerItem
+    netGL: MmifReconLedgerItem
+    totalPnL: MmifReconLedgerItem
+    tbBalanced: MmifReconLedgerItem
+
+
+class MmifReconciliationDetailDoc(BaseModel):
+    """Full per-fund reconciliation detail (Accounting vs MMIF side-by-side)."""
+    eventId: str
+    account: str
+    fundName: str
+    filingPeriod: str
+    assetLiabilityRows: list[MmifReconAccountRow] = []
+    capitalRows: list[MmifReconCapitalRow] = []
+    shareholderRows: list[MmifReconShareholderRow] = []
+    navComparison: Optional[MmifReconNavComparison] = None
+    ledgerCrossCheck: Optional[MmifReconLedgerCrossCheck] = None
+
+
 class RunMmifValidationRequest(BaseModel):
     """Request to run MMIF validation."""
     eventId: str
@@ -845,3 +928,69 @@ class MmifSectionSummary(BaseModel):
     variance: float = 0
     status: ValidationResultStatus = ValidationResultStatus.PASSED
     ruleId: Optional[str] = None
+
+
+# ══════════════════════════════════════════════════════════════
+# MMIF DSL Rule Definition Schemas
+# ══════════════════════════════════════════════════════════════
+
+class DslExpressionSide(BaseModel):
+    """One side (LHS or RHS) of a DSL validation rule expression."""
+    label: str
+    expr: str
+
+
+class MmifDslRuleDefDoc(BaseModel):
+    """Dynamic MMIF validation rule definition backed by CEL expressions."""
+    ruleId: str
+    ruleName: str
+    description: str
+    severity: MmifSeverity
+    tolerance: float = 0.0
+    mmifSection: Optional[str] = None
+    category: Optional[str] = None
+    isDsl: bool = True
+    dataSource: str = "mmifLedgerData"
+    lhs: DslExpressionSide
+    rhs: DslExpressionSide
+    version: int = 1
+    isActive: bool = True
+    createdBy: str = "system"
+    createdAt: Optional[str] = None
+    updatedAt: Optional[str] = None
+    deletedAt: Optional[str] = None
+
+
+class DslExprValidateRequest(BaseModel):
+    """Request to validate a CEL expression."""
+    expression: str
+    dataSource: Optional[str] = None
+
+
+class DslExprValidateResponse(BaseModel):
+    """Result of CEL expression validation."""
+    isValid: bool
+    error: Optional[str] = None
+
+
+class DslRuleTestRequest(BaseModel):
+    """Request to test a DSL rule against sample data."""
+    ruleId: Optional[str] = None
+    lhsExpr: str
+    rhsExpr: str
+    dataSource: str = "mmifLedgerData"
+    fundAccount: str
+    filingPeriod: str
+    tolerance: float = 0.0
+    severity: MmifSeverity = MmifSeverity.HARD
+
+
+class DslRuleTestResponse(BaseModel):
+    """Result of testing a DSL rule."""
+    lhsValue: float
+    rhsValue: float
+    variance: float
+    status: ValidationResultStatus
+    lhsLabel: str = ""
+    rhsLabel: str = ""
+    error: Optional[str] = None

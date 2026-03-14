@@ -126,8 +126,12 @@ COLLECTIONS = {
     "mmifValidationRuns": "mmifValidationRuns",
     "mmifBreakRecords": "mmifBreakRecords",
     "mmifMappingConfigs": "mmifMappingConfigs",
+    "mmifLedgerData": "mmifLedgerData",
     "mmifActivityFeed": "mmifActivityFeed",
+    "mmifValidationRuleDefs": "mmifValidationRuleDefs",
+    "mmifSampleData": "mmifSampleData",
     # MMIF 6-Agent Analysis Tables
+    "mmifReconciliationDetails": "mmifReconciliationDetails",
     "mmifAgentAnalysis": "mmifAgentAnalysis",
     "mmifChatSessions": "mmifChatSessions",
     "mmifAttestations": "mmifAttestations",

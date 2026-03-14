@@ -66,6 +66,13 @@ export async function fetchEvent(eventId: string) {
   return fetchJSON<any>(`/api/events/${eventId}`);
 }
 
+export async function createConversionEvent(event: Record<string, unknown>) {
+  return fetchJSON<{ status: string; eventId: string }>('/api/events', {
+    method: 'POST',
+    body: JSON.stringify(event),
+  });
+}
+
 // ── MMIF Regulatory Filing Events ───────────────────────────
 
 export async function fetchMmifEvents(status?: string) {
@@ -75,6 +82,13 @@ export async function fetchMmifEvents(status?: string) {
 
 export async function fetchMmifEvent(eventId: string) {
   return fetchJSON<any>(`/api/mmif/events/${eventId}`);
+}
+
+export async function createMmifEvent(event: Record<string, unknown>) {
+  return fetchJSON<{ status: string; eventId: string }>('/api/mmif/events', {
+    method: 'POST',
+    body: JSON.stringify(event),
+  });
 }
 
 export async function fetchMmifEventRuns(eventId: string) {
@@ -102,8 +116,124 @@ export async function fetchMmifMapping(eventId: string, account?: string) {
   return fetchJSON<any[]>(`/api/mmif/events/${eventId}/mapping${params}`);
 }
 
+export async function saveMmifMapping(eventId: string, config: Record<string, unknown>) {
+  return fetchJSON<{ status: string; matched: number }>(`/api/mmif/events/${eventId}/mapping`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
+}
+
+export async function deleteMmifMapping(eventId: string, account: string) {
+  return fetchJSON<{ status: string }>(`/api/mmif/events/${eventId}/mapping/${encodeURIComponent(account)}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function fetchMmifReconciliationDetail(eventId: string, account: string) {
+  return fetchJSON<any>(`/api/mmif/events/${eventId}/reconciliation/${encodeURIComponent(account)}`);
+}
+
+export async function fetchMmifReconciliationDetails(eventId: string) {
+  return fetchJSON<any[]>(`/api/mmif/events/${eventId}/reconciliation`);
+}
+
+export async function fetchMmifMappingTemplates() {
+  return fetchJSON<any[]>('/api/mmif/mapping-templates');
+}
+
+export async function fetchMmifMappingTemplate(fundType: string) {
+  return fetchJSON<any>(`/api/mmif/mapping-templates/${encodeURIComponent(fundType)}`);
+}
+
 export async function fetchMmifValidationRules() {
   return fetchJSON<any[]>('/api/mmif/validation-rules');
+}
+
+export async function fetchMmifValidationRule(ruleId: string) {
+  return fetchJSON<any>(`/api/mmif/validation-rules/${ruleId}`);
+}
+
+export async function createMmifValidationRule(rule: any) {
+  return fetchJSON<any>('/api/mmif/validation-rules', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(rule),
+  });
+}
+
+export async function updateMmifValidationRule(ruleId: string, updates: any) {
+  return fetchJSON<any>(`/api/mmif/validation-rules/${ruleId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteMmifValidationRule(ruleId: string) {
+  return fetchJSON<any>(`/api/mmif/validation-rules/${ruleId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function validateMmifExpression(expression: string) {
+  return fetchJSON<{ isValid: boolean; error: string | null }>('/api/mmif/validation-rules/validate-expr', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ expression }),
+  });
+}
+
+export async function testMmifDslRule(params: {
+  lhsExpr: string;
+  rhsExpr: string;
+  dataSource: string;
+  fundAccount: string;
+  filingPeriod: string;
+  tolerance: number;
+  severity: string;
+  lhsLabel?: string;
+  rhsLabel?: string;
+}) {
+  return fetchJSON<any>('/api/mmif/validation-rules/test', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+}
+
+export async function fetchMmifDslFunctions() {
+  return fetchJSON<any[]>('/api/mmif/validation-rules/functions');
+}
+
+export interface AiRuleSuggestRequest {
+  prompt: string;
+  dataSource?: string;
+  existingLhsExpr?: string;
+  existingRhsExpr?: string;
+}
+
+export interface AiRuleSuggestResponse {
+  ruleId: string;
+  ruleName: string;
+  description: string;
+  severity: string;
+  tolerance: number;
+  mmifSection: string | null;
+  category: string;
+  dataSource: string;
+  lhs: { label: string; expr: string };
+  rhs: { label: string; expr: string };
+  lhsValidated: boolean;
+  rhsValidated: boolean;
+}
+
+export async function suggestMmifRule(request: AiRuleSuggestRequest) {
+  return fetchJSON<AiRuleSuggestResponse>('/api/mmif/validation-rules/ai-suggest', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
 }
 
 export async function fetchMmifCheckSuiteOptions() {

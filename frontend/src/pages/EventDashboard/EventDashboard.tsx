@@ -39,6 +39,7 @@ import CategoryIcon from '@mui/icons-material/Category';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import DescriptionIcon from '@mui/icons-material/Description';
+import AddIcon from '@mui/icons-material/Add';
 import GavelIcon from '@mui/icons-material/Gavel';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
@@ -76,6 +77,7 @@ import {
 } from '../../types';
 import { useDrillDownDispatch } from '../../context/DrillDownContext';
 import { useAuth } from '../../context/AuthContext';
+import NewEventDialog from './NewEventDialog';
 
 // ── Constants ─────────────────────────────────────────────────
 
@@ -188,58 +190,60 @@ const EventDashboard: React.FC = () => {
   // MMIF check suite options (loaded lazily)
   const [mmifCheckOptions, setMmifCheckOptions] = useState<{ value: string; label: string }[]>([]);
 
+  // New Event dialog
+  const [newEventOpen, setNewEventOpen] = useState(false);
+
   // ── Load data ──────────────────────────────────
-  useEffect(() => {
-    const load = async () => {
-      try {
-        setLoading(true);
-        const [convEvts, mmifEvts, acts] = await Promise.all([
-          fetchEvents(),
-          fetchMmifEvents().catch(() => []),
-          fetchActivity(10),
-        ]);
-        setConversionEvents(convEvts as ConversionEvent[]);
-        setMmifEvents(mmifEvts as MmifEvent[]);
-        setActivityFeed(acts as ActivityFeedItem[]);
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [convEvts, mmifEvts, acts] = await Promise.all([
+        fetchEvents(),
+        fetchMmifEvents().catch(() => []),
+        fetchActivity(10),
+      ]);
+      setConversionEvents(convEvts as ConversionEvent[]);
+      setMmifEvents(mmifEvts as MmifEvent[]);
+      setActivityFeed(acts as ActivityFeedItem[]);
 
-        // Load MMIF check suite options
-        fetchMmifCheckSuiteOptions().then(setMmifCheckOptions).catch(() => {});
+      // Load MMIF check suite options
+      fetchMmifCheckSuiteOptions().then(setMmifCheckOptions).catch(() => {});
 
-        // Allocation + review summaries for conversion events
-        const allocMap: Record<string, { assigned: number; total: number }> = {};
-        const completionMap: Record<string, { completed: number; total: number }> = {};
-        await Promise.all(
-          (convEvts as ConversionEvent[]).map(async (evt) => {
-            try {
-              const allocs = await fetchAllocations(evt.eventId);
-              allocMap[evt.eventId] = { assigned: allocs.filter((a: any) => a.reviewer).length, total: allocs.length };
-              completionMap[evt.eventId] = { completed: allocs.filter((a: any) => a.reviewStatus === 'COMPLETE').length, total: allocs.length };
-            } catch {
-              allocMap[evt.eventId] = { assigned: 0, total: 0 };
-              completionMap[evt.eventId] = { completed: 0, total: 0 };
-            }
-          })
-        );
-        setAllocSummary(allocMap);
-        setReviewCompletion(completionMap);
+      // Allocation + review summaries for conversion events
+      const allocMap: Record<string, { assigned: number; total: number }> = {};
+      const completionMap: Record<string, { completed: number; total: number }> = {};
+      await Promise.all(
+        (convEvts as ConversionEvent[]).map(async (evt) => {
+          try {
+            const allocs = await fetchAllocations(evt.eventId);
+            allocMap[evt.eventId] = { assigned: allocs.filter((a: any) => a.reviewer).length, total: allocs.length };
+            completionMap[evt.eventId] = { completed: allocs.filter((a: any) => a.reviewStatus === 'COMPLETE').length, total: allocs.length };
+          } catch {
+            allocMap[evt.eventId] = { assigned: 0, total: 0 };
+            completionMap[evt.eventId] = { completed: 0, total: 0 };
+          }
+        })
+      );
+      setAllocSummary(allocMap);
+      setReviewCompletion(completionMap);
 
-        // Break summaries for conversion events
-        const breakMap: Record<string, Record<string, { count: number; totalAmount: number }>> = {};
-        await Promise.all(
-          (convEvts as ConversionEvent[]).map(async (evt) => {
-            try { breakMap[evt.eventId] = await fetchBreakSummary(evt.eventId); }
-            catch { breakMap[evt.eventId] = {}; }
-          })
-        );
-        setBreakSummaries(breakMap);
-      } catch (err) {
-        console.error('Failed to load dashboard data:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
+      // Break summaries for conversion events
+      const breakMap: Record<string, Record<string, { count: number; totalAmount: number }>> = {};
+      await Promise.all(
+        (convEvts as ConversionEvent[]).map(async (evt) => {
+          try { breakMap[evt.eventId] = await fetchBreakSummary(evt.eventId); }
+          catch { breakMap[evt.eventId] = {}; }
+        })
+      );
+      setBreakSummaries(breakMap);
+    } catch (err) {
+      console.error('Failed to load dashboard data:', err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
 
   // ── Navigation ─────────────────────────────────
   const navigateToConversionEvent = useCallback(
@@ -267,6 +271,12 @@ const EventDashboard: React.FC = () => {
     },
     [dispatch, navigate, conversionEvents],
   );
+
+  // ── New Event dialog ───────────────────────────
+  const handleNewEventClose = useCallback((created?: boolean) => {
+    setNewEventOpen(false);
+    if (created) loadData();
+  }, [loadData]);
 
   // ── Modal ──────────────────────────────────────
   const openRunModal = useCallback((event: any) => {
@@ -400,12 +410,24 @@ const EventDashboard: React.FC = () => {
     <Box role="main" aria-label="Event Dashboard">
       {/* Header */}
       <Box sx={{ mb: 3 }}>
-        <Typography variant="h4" gutterBottom>
-          Event Dashboard
-        </Typography>
-        <Typography variant="subtitle1" color="text.secondary">
-          Unified view of Conversion and MMIF Regulatory Filing events
-        </Typography>
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+          <Box>
+            <Typography variant="h4" gutterBottom>
+              Event Dashboard
+            </Typography>
+            <Typography variant="subtitle1" color="text.secondary">
+              Unified view of Conversion and MMIF Regulatory Filing events
+            </Typography>
+          </Box>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setNewEventOpen(true)}
+            sx={{ whiteSpace: 'nowrap' }}
+          >
+            New Event
+          </Button>
+        </Stack>
       </Box>
 
       {/* Event Type Toggle */}
@@ -506,6 +528,9 @@ const EventDashboard: React.FC = () => {
         </Grid>
       </Grid>
 
+      {/* New Event Dialog */}
+      <NewEventDialog open={newEventOpen} onClose={handleNewEventClose} />
+
       {/* Run Validation Modal */}
       <Dialog open={runModalOpen} onClose={() => setRunModalOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>
@@ -532,7 +557,7 @@ const EventDashboard: React.FC = () => {
             )}
             <Box>
               <Typography variant="caption" fontWeight={600}>
-                {runModalEvent && isMmif(runModalEvent) ? 'Validation Rules (VR-001 to VR-015)' : 'Check Suite'}
+                {runModalEvent && isMmif(runModalEvent) ? 'Validation Rules (VR-001 to VR-020)' : 'Check Suite'}
               </Typography>
               <FormGroup sx={{ mt: 0.5, maxHeight: 300, overflow: 'auto' }}>
                 {(runModalEvent && isMmif(runModalEvent) ? mmifCheckOptions : CHECK_SUITE_OPTIONS).map((opt) => (

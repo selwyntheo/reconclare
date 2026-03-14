@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -26,6 +26,7 @@ import {
   LinearProgress,
   Fab,
   CircularProgress,
+  Collapse,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -37,6 +38,9 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import GppGoodIcon from '@mui/icons-material/GppGood';
 import BlockIcon from '@mui/icons-material/Block';
+import EditNoteIcon from '@mui/icons-material/EditNote';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 import {
   fetchMmifEvent,
   fetchMmifSummary,
@@ -55,11 +59,13 @@ import {
   MmifValidationRule,
   MmifAgentAnalysis,
   MmifAttestationReport,
+  MmifDrillDownContext,
 } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import MmifAgentPipeline from '../../components/shared/MmifAgentPipeline';
 import MmifLevelDrillDown from '../../components/shared/MmifLevelDrillDown';
 import MmifChatPanel from '../../components/shared/MmifChatPanel';
+import MmifBreakDetailView from './MmifBreakDetailView';
 
 const mmifStatusLabels: Record<MmifEventStatus, string> = {
   DRAFT: 'Draft',
@@ -282,7 +288,7 @@ const MmifReconciliation: React.FC = () => {
   const [rules, setRules] = useState<MmifValidationRule[]>([]);
   const [latestRun, setLatestRun] = useState<any>(null);
   const [mappingConfigs, setMappingConfigs] = useState<any[]>([]);
-  const [expandedMapping, setExpandedMapping] = useState<string | null>(null);
+  const [expandedTemplate, setExpandedTemplate] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -292,6 +298,12 @@ const MmifReconciliation: React.FC = () => {
 
   // Chat panel state
   const [chatOpen, setChatOpen] = useState(false);
+
+  // Drill-down context (from Validation Rules → Breaks by Fund)
+  const [drillDownContext, setDrillDownContext] = useState<MmifDrillDownContext | null>(null);
+
+  // Expandable rule rows (multiple can be open)
+  const [expandedRules, setExpandedRules] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!eventId) return;
@@ -346,6 +358,38 @@ const MmifReconciliation: React.FC = () => {
     }
   };
 
+  const handleRuleDrillDown = (rule: MmifValidationRule) => {
+    const ruleBreaks = breaks.filter((b) => b.ruleId === rule.ruleId);
+    const firstBreak = ruleBreaks[0];
+    setDrillDownContext({
+      ruleId: rule.ruleId,
+      ruleName: rule.ruleName,
+      mmifSection: rule.mmifSection,
+      fundAccount: firstBreak?.fundAccount,
+      fundName: firstBreak?.fundName,
+    });
+    setActiveTab(1);
+  };
+
+  const handleToggleRuleExpand = (ruleId: string) => {
+    setExpandedRules((prev) => {
+      const next = new Set(prev);
+      next.has(ruleId) ? next.delete(ruleId) : next.add(ruleId);
+      return next;
+    });
+  };
+
+  const handleFundDrillDown = (rule: MmifValidationRule, fundAccount: string, fundName: string) => {
+    setDrillDownContext({
+      ruleId: rule.ruleId,
+      ruleName: rule.ruleName,
+      mmifSection: rule.mmifSection,
+      fundAccount,
+      fundName,
+    });
+    setActiveTab(1);
+  };
+
   if (loading) return <LinearProgress />;
   if (!event || !summary) return <Typography>Event not found</Typography>;
 
@@ -354,6 +398,39 @@ const MmifReconciliation: React.FC = () => {
   breaks.forEach((b) => {
     if (!breaksByFund[b.fundAccount]) breaksByFund[b.fundAccount] = [];
     breaksByFund[b.fundAccount].push(b);
+  });
+
+  // Group breaks by ruleId → fundAccount for expandable rows
+  const breaksByRuleAndFund: Record<string, Array<{
+    fundAccount: string;
+    fundName: string;
+    lhsLabel: string;
+    lhsValue: number;
+    rhsLabel: string;
+    rhsValue: number;
+    totalVariance: number;
+    breakCount: number;
+    state: string;
+  }>> = {};
+  breaks.forEach((b) => {
+    if (!breaksByRuleAndFund[b.ruleId]) breaksByRuleAndFund[b.ruleId] = [];
+    const existing = breaksByRuleAndFund[b.ruleId].find((f) => f.fundAccount === b.fundAccount);
+    if (existing) {
+      existing.totalVariance += b.variance;
+      existing.breakCount += 1;
+    } else {
+      breaksByRuleAndFund[b.ruleId].push({
+        fundAccount: b.fundAccount,
+        fundName: b.fundName,
+        lhsLabel: b.lhsLabel,
+        lhsValue: b.lhsValue,
+        rhsLabel: b.rhsLabel,
+        rhsValue: b.rhsValue,
+        totalVariance: b.variance,
+        breakCount: 1,
+        state: b.state,
+      });
+    }
   });
 
   // Build rule results from latest run
@@ -440,7 +517,7 @@ const MmifReconciliation: React.FC = () => {
       <Paper sx={{ borderRadius: 2 }}>
         <Tabs
           value={activeTab}
-          onChange={(_, v) => setActiveTab(v)}
+          onChange={(_, v) => { setActiveTab(v); if (v !== 1) setDrillDownContext(null); }}
           sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}
         >
           <Tab label="Validation Rules" />
@@ -468,13 +545,23 @@ const MmifReconciliation: React.FC = () => {
         {/* Tab 0: Validation Rules Matrix */}
         {activeTab === 0 && (
           <Box sx={{ p: 2 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
-              MMIF Validation Rules (VR-001 through VR-015)
-            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+              <Typography variant="subtitle2">
+                MMIF Validation Rules (VR-001 through VR-020)
+              </Typography>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => navigate('/mmif/rules/new')}
+              >
+                + New Rule
+              </Button>
+            </Box>
             <TableContainer>
               <Table size="small">
                 <TableHead>
                   <TableRow>
+                    <TableCell sx={{ fontWeight: 600, width: 40, p: 0 }}></TableCell>
                     <TableCell sx={{ fontWeight: 600, width: 100 }}>Rule</TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
                     <TableCell sx={{ fontWeight: 600, width: 80 }}>Severity</TableCell>
@@ -482,43 +569,146 @@ const MmifReconciliation: React.FC = () => {
                     <TableCell sx={{ fontWeight: 600, width: 80 }}>Tolerance</TableCell>
                     <TableCell sx={{ fontWeight: 600, width: 80 }}>Breaks</TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>Description</TableCell>
+                    <TableCell sx={{ fontWeight: 600, width: 40 }}></TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {rules.map((rule) => {
                     const breakCount = summary.breaksByRule[rule.ruleId] || 0;
+                    const isExpanded = expandedRules.has(rule.ruleId);
+                    const fundBreaks = breaksByRuleAndFund[rule.ruleId] || [];
                     return (
-                      <TableRow
-                        key={rule.ruleId}
-                        sx={{
-                          bgcolor: breakCount > 0 ? alpha(theme.palette.error.main, 0.04) : 'transparent',
-                        }}
-                      >
-                        <TableCell>
-                          <Typography variant="body2" fontWeight={600}>
-                            {rule.ruleId.replace('_', '-')}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>{rule.ruleName}</TableCell>
-                        <TableCell>
-                          <Stack direction="row" spacing={0.5} alignItems="center">
-                            {severityIcon(rule.severity)}
-                            <Typography variant="caption">{rule.severity}</Typography>
-                          </Stack>
-                        </TableCell>
-                        <TableCell>{rule.mmifSection || '—'}</TableCell>
-                        <TableCell>{rule.tolerance}</TableCell>
-                        <TableCell>
-                          {breakCount > 0 ? (
-                            <Chip label={breakCount} size="small" color="error" sx={{ fontWeight: 600 }} />
-                          ) : (
-                            <CheckCircleIcon fontSize="small" color="success" />
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="caption" color="text.secondary">{rule.description}</Typography>
-                        </TableCell>
-                      </TableRow>
+                      <React.Fragment key={rule.ruleId}>
+                        <TableRow
+                          onClick={breakCount > 0 ? () => handleToggleRuleExpand(rule.ruleId) : undefined}
+                          sx={{
+                            bgcolor: breakCount > 0 ? alpha(theme.palette.error.main, 0.04) : 'transparent',
+                            cursor: breakCount > 0 ? 'pointer' : 'default',
+                            '&:hover': breakCount > 0 ? { bgcolor: alpha(theme.palette.error.main, 0.08) } : undefined,
+                          }}
+                        >
+                          <TableCell sx={{ p: 0, width: 40 }}>
+                            {breakCount > 0 && (
+                              <IconButton
+                                size="small"
+                                onClick={(e) => { e.stopPropagation(); handleToggleRuleExpand(rule.ruleId); }}
+                                aria-label={isExpanded ? `Collapse ${rule.ruleName}` : `Expand ${rule.ruleName}`}
+                                sx={{ p: 0.5 }}
+                              >
+                                {isExpanded ? <KeyboardArrowDownIcon fontSize="small" /> : <KeyboardArrowRightIcon fontSize="small" />}
+                              </IconButton>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight={600}>
+                              {rule.ruleId.replace('_', '-')}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>{rule.ruleName}</TableCell>
+                          <TableCell>
+                            <Stack direction="row" spacing={0.5} alignItems="center">
+                              {severityIcon(rule.severity)}
+                              <Typography variant="caption">{rule.severity}</Typography>
+                            </Stack>
+                          </TableCell>
+                          <TableCell>{rule.mmifSection || '—'}</TableCell>
+                          <TableCell>{rule.tolerance}</TableCell>
+                          <TableCell>
+                            {breakCount > 0 ? (
+                              <Chip label={breakCount} size="small" color="error" sx={{ fontWeight: 600 }} />
+                            ) : (
+                              <CheckCircleIcon fontSize="small" color="success" />
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="caption" color="text.secondary">{rule.description}</Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Tooltip title="Edit Rule">
+                              <IconButton size="small" onClick={(e) => { e.stopPropagation(); navigate(`/mmif/rules/${rule.ruleId}`); }}>
+                                <EditNoteIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </TableCell>
+                        </TableRow>
+                        {breakCount > 0 && (
+                          <TableRow>
+                            <TableCell
+                              colSpan={9}
+                              sx={{ py: 0, px: 0, borderBottom: isExpanded ? undefined : 'none' }}
+                            >
+                              <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                                <Box sx={{ px: 4, py: 1.5, bgcolor: alpha(theme.palette.error.main, 0.02) }}>
+                                  <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                                    Breaking Funds for {rule.ruleId.replace('_', '-')}: {rule.ruleName}
+                                  </Typography>
+                                  <Table size="small">
+                                    <TableHead>
+                                      <TableRow>
+                                        <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>Fund Account</TableCell>
+                                        <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>Fund Name</TableCell>
+                                        <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }} align="right">
+                                          Eagle ({fundBreaks[0]?.lhsLabel || 'LHS'})
+                                        </TableCell>
+                                        <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }} align="right">
+                                          MMIF ({fundBreaks[0]?.rhsLabel || 'RHS'})
+                                        </TableCell>
+                                        <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }} align="right">Variance</TableCell>
+                                        <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>State</TableCell>
+                                      </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                      {fundBreaks.map((fb) => (
+                                        <TableRow
+                                          key={fb.fundAccount}
+                                          onClick={(e) => { e.stopPropagation(); handleFundDrillDown(rule, fb.fundAccount, fb.fundName); }}
+                                          sx={{
+                                            cursor: 'pointer',
+                                            '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.06) },
+                                          }}
+                                        >
+                                          <TableCell>
+                                            <Typography variant="body2" fontFamily="monospace" fontSize="0.75rem">
+                                              {fb.fundAccount}
+                                            </Typography>
+                                          </TableCell>
+                                          <TableCell>
+                                            <Typography variant="body2" fontSize="0.8rem">{fb.fundName}</Typography>
+                                          </TableCell>
+                                          <TableCell align="right">
+                                            <Typography variant="body2" fontFamily="monospace" fontSize="0.75rem">
+                                              {formatCurrency(fb.lhsValue)}
+                                            </Typography>
+                                          </TableCell>
+                                          <TableCell align="right">
+                                            <Typography variant="body2" fontFamily="monospace" fontSize="0.75rem">
+                                              {formatCurrency(fb.rhsValue)}
+                                            </Typography>
+                                          </TableCell>
+                                          <TableCell align="right">
+                                            <Typography variant="body2" fontFamily="monospace" fontSize="0.75rem" fontWeight={700} color="error">
+                                              {formatCurrency(fb.totalVariance)}
+                                            </Typography>
+                                          </TableCell>
+                                          <TableCell>
+                                            <Chip
+                                              label={fb.state.replace('_', ' ')}
+                                              size="small"
+                                              color={fb.state === 'RESOLVED' || fb.state === 'CLOSED' ? 'success' : fb.state === 'DETECTED' ? 'error' : 'warning'}
+                                              variant="outlined"
+                                              sx={{ fontSize: '0.65rem', height: 20 }}
+                                            />
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </Box>
+                              </Collapse>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </React.Fragment>
                     );
                   })}
                 </TableBody>
@@ -527,68 +717,15 @@ const MmifReconciliation: React.FC = () => {
           </Box>
         )}
 
-        {/* Tab 1: Breaks by Fund */}
+        {/* Tab 1: Breaks by Fund — Side-by-side Accounting vs MMIF */}
         {activeTab === 1 && (
           <Box sx={{ p: 2 }}>
-            {breaks.length === 0 ? (
-              <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
-                No breaks detected
-              </Typography>
-            ) : (
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Break ID</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Fund</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Rule</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Severity</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Section</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="right">Eagle (LHS)</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="right">MMIF (RHS)</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="right">Variance</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>State</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {breaks.map((b) => (
-                      <TableRow key={b.breakId}>
-                        <TableCell>
-                          <Typography variant="body2" fontFamily="monospace" fontSize="0.75rem">
-                            {b.breakId}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>{b.fundName}</TableCell>
-                        <TableCell>
-                          <Chip label={b.ruleId.replace('_', '-')} size="small" variant="outlined" sx={{ fontSize: '0.7rem' }} />
-                        </TableCell>
-                        <TableCell>
-                          <Stack direction="row" spacing={0.5} alignItems="center">
-                            {severityIcon(b.severity)}
-                            <Typography variant="caption">{b.severity}</Typography>
-                          </Stack>
-                        </TableCell>
-                        <TableCell>{b.mmifSection || '—'}</TableCell>
-                        <TableCell align="right">{formatCurrency(b.lhsValue)}</TableCell>
-                        <TableCell align="right">{formatCurrency(b.rhsValue)}</TableCell>
-                        <TableCell align="right">
-                          <Typography
-                            variant="body2"
-                            color="error"
-                            fontWeight={600}
-                          >
-                            {formatCurrency(b.variance)}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Chip label={b.state} size="small" variant="outlined" sx={{ fontSize: '0.65rem' }} />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
+            <MmifBreakDetailView
+              eventId={eventId!}
+              funds={event.funds}
+              drillDownContext={drillDownContext}
+              onClearDrillDown={() => setDrillDownContext(null)}
+            />
           </Box>
         )}
 
@@ -663,176 +800,200 @@ const MmifReconciliation: React.FC = () => {
           </Box>
         )}
 
-        {/* Tab 3: Mapping Config */}
+        {/* Tab 3: Mapping Config — Template by Fund Type */}
         {activeTab === 3 && (
           <Box sx={{ p: 2 }}>
             <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
               Eagle GL to MMIF Section Mapping
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Mapping configurations define how Eagle trial balance accounts map to MMIF taxonomy sections.
-              Each fund requires a mapping configuration before reconciliation can proceed.
+              Each fund type has a mapping template that applies to all funds of that type.
+              Edit a template to configure how Eagle trial balance accounts map to MMIF taxonomy sections.
             </Typography>
             <Stack spacing={2}>
-              {event.funds.map((fund) => {
-                const config = mappingConfigs.find((c: any) => c.account === fund.account);
-                const isExpanded = expandedMapping === fund.account;
-                return (
-                  <Paper key={fund.account} variant="outlined" sx={{ overflow: 'hidden' }}>
-                    <Stack
-                      direction="row"
-                      justifyContent="space-between"
-                      alignItems="center"
-                      sx={{ p: 2, cursor: config ? 'pointer' : 'default' }}
-                      onClick={() => config && setExpandedMapping(isExpanded ? null : fund.account)}
-                    >
-                      <Box>
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          <Typography variant="subtitle2">{fund.fundName}</Typography>
-                          {config ? (
-                            <Chip label={`${config.mappings.length} rules`} size="small" color="primary" variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
-                          ) : (
-                            <Chip label="Not configured" size="small" color="default" variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
-                          )}
-                          {config?.unmappedAccounts?.length > 0 && (
-                            <Chip label={`${config.unmappedAccounts.length} unmapped`} size="small" color="warning" variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
-                          )}
-                        </Stack>
-                        <Typography variant="caption" color="text.secondary">
-                          {fund.account} — {fund.fundType} — {fund.fundDomicile}
-                          {config && ` — ${config.baseCurrency}`}
-                        </Typography>
-                      </Box>
-                      {config && (
-                        <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                          {isExpanded ? 'Click to collapse' : 'Click to expand'}
-                        </Typography>
-                      )}
-                    </Stack>
-
-                    {isExpanded && config && (
-                      <Box>
-                        <Divider />
-                        {/* GL → MMIF Mapping Table */}
-                        <TableContainer>
-                          <Table size="small">
-                            <TableHead>
-                              <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
-                                <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>Eagle GL</TableCell>
-                                <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>Source Table</TableCell>
-                                <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>Source Field</TableCell>
-                                <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>MMIF Section</TableCell>
-                                <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>MMIF Field</TableCell>
-                                <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>Inst. Type</TableCell>
-                                <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>Code Type</TableCell>
-                                <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>Sign</TableCell>
-                                <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>Notes</TableCell>
-                              </TableRow>
-                            </TableHead>
-                            <TableBody>
-                              {config.mappings.map((m: any, i: number) => (
-                                <TableRow key={i} sx={{ '&:last-child td': { borderBottom: 0 } }}>
-                                  <TableCell>
-                                    <Typography variant="body2" fontFamily="monospace" fontSize="0.75rem" fontWeight={600}>
-                                      {m.eagleGlPattern}
-                                    </Typography>
-                                  </TableCell>
-                                  <TableCell>
-                                    <Typography variant="caption">{m.eagleSourceTable}</Typography>
-                                  </TableCell>
-                                  <TableCell>
-                                    <Typography variant="caption">{m.eagleSourceField}</Typography>
-                                  </TableCell>
-                                  <TableCell>
-                                    <Chip label={m.mmifSection} size="small" color="info" variant="outlined" sx={{ fontSize: '0.7rem', fontWeight: 600, height: 22 }} />
-                                  </TableCell>
-                                  <TableCell>
-                                    <Typography variant="caption">{m.mmifField}</Typography>
-                                  </TableCell>
-                                  <TableCell>
-                                    <Typography variant="caption">{m.instrumentType ?? '—'}</Typography>
-                                  </TableCell>
-                                  <TableCell>
-                                    <Typography variant="caption">{m.codeType ?? '—'}</Typography>
-                                  </TableCell>
-                                  <TableCell>
-                                    <Typography variant="caption" fontFamily="monospace">
-                                      {m.signConvention === -1 ? '-1' : '+1'}
-                                    </Typography>
-                                  </TableCell>
-                                  <TableCell>
-                                    <Typography variant="caption" color="text.secondary">{m.notes}</Typography>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </TableContainer>
-
-                        {/* Counterparty Enrichment */}
-                        {config.counterpartyEnrichment && Object.keys(config.counterpartyEnrichment).length > 0 && (
-                          <Box sx={{ px: 2, py: 1.5, bgcolor: alpha(theme.palette.grey[500], 0.04) }}>
-                            <Typography variant="caption" fontWeight={600} sx={{ display: 'block', mb: 0.5 }}>
-                              Counterparty Enrichment
-                            </Typography>
-                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                              {Object.entries(config.counterpartyEnrichment).map(([name, info]: [string, any]) => (
-                                <Chip
-                                  key={name}
-                                  label={`${name}: ${info.sector} (${info.country})`}
-                                  size="small"
-                                  variant="outlined"
-                                  sx={{ fontSize: '0.7rem', height: 22 }}
-                                />
-                              ))}
-                            </Stack>
-                          </Box>
-                        )}
-
-                        {/* Investor Classification */}
-                        {config.investorClassification && Object.keys(config.investorClassification).length > 0 && (
-                          <Box sx={{ px: 2, py: 1.5 }}>
-                            <Typography variant="caption" fontWeight={600} sx={{ display: 'block', mb: 0.5 }}>
-                              Investor Classification
-                            </Typography>
-                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                              {Object.entries(config.investorClassification).map(([code, label]: [string, any]) => (
-                                <Chip
-                                  key={code}
-                                  label={`${code}: ${label}`}
-                                  size="small"
-                                  variant="outlined"
-                                  color="primary"
-                                  sx={{ fontSize: '0.7rem', height: 22 }}
-                                />
-                              ))}
-                            </Stack>
-                          </Box>
-                        )}
-
-                        {/* Unmapped Accounts Warning */}
-                        {config.unmappedAccounts?.length > 0 && (
-                          <Box sx={{ px: 2, py: 1.5, bgcolor: alpha(theme.palette.warning.main, 0.06) }}>
-                            <Stack direction="row" spacing={0.5} alignItems="center">
-                              <WarningAmberIcon fontSize="small" color="warning" />
-                              <Typography variant="caption" fontWeight={600} color="warning.dark">
-                                Unmapped GL Accounts: {config.unmappedAccounts.join(', ')}
-                              </Typography>
-                            </Stack>
-                          </Box>
-                        )}
-
-                        {/* Timestamps */}
-                        <Box sx={{ px: 2, py: 1, borderTop: `1px solid ${theme.palette.divider}` }}>
+              {(() => {
+                // Group funds by fund type
+                const fundTypeMap = new Map<string, typeof event.funds>();
+                event.funds.forEach((fund) => {
+                  const existing = fundTypeMap.get(fund.fundType) || [];
+                  existing.push(fund);
+                  fundTypeMap.set(fund.fundType, existing);
+                });
+                return Array.from(fundTypeMap.entries()).map(([fundType, funds]) => {
+                  const config = mappingConfigs.find((c: any) => c.account === fundType || c.fundType === fundType);
+                  const isExpanded = expandedTemplate === fundType;
+                  return (
+                    <Paper key={fundType} variant="outlined" sx={{ overflow: 'hidden' }}>
+                      <Stack
+                        direction="row"
+                        justifyContent="space-between"
+                        alignItems="center"
+                        sx={{ p: 2, cursor: config ? 'pointer' : 'default' }}
+                        onClick={() => config && setExpandedTemplate(isExpanded ? null : fundType)}
+                      >
+                        <Box>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Typography variant="subtitle2">{fundType} Template</Typography>
+                            <Chip label={`${funds.length} fund${funds.length > 1 ? 's' : ''}`} size="small" color="info" variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
+                            {config ? (
+                              <Chip label={`${config.mappings?.length || 0} rules`} size="small" color="primary" variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
+                            ) : (
+                              <Chip label="Not configured" size="small" color="default" variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
+                            )}
+                            {config?.unmappedAccounts?.length > 0 && (
+                              <Chip label={`${config.unmappedAccounts.length} unmapped`} size="small" color="warning" variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
+                            )}
+                          </Stack>
                           <Typography variant="caption" color="text.secondary">
-                            Created: {new Date(config.createdAt).toLocaleDateString()} — Updated: {new Date(config.updatedAt).toLocaleDateString()}
+                            Applies to: {funds.map((f) => f.fundName).join(', ')}
+                            {config && ` — ${config.baseCurrency}`}
                           </Typography>
                         </Box>
-                      </Box>
-                    )}
-                  </Paper>
-                );
-              })}
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Button
+                            size="small"
+                            variant={config ? 'outlined' : 'contained'}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/mmif/${eventId}/mapping-template/${fundType}`);
+                            }}
+                          >
+                            {config ? 'Edit Template' : 'Configure Template'}
+                          </Button>
+                          {config && (
+                            <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                              {isExpanded ? 'Click to collapse' : 'Click to expand'}
+                            </Typography>
+                          )}
+                        </Stack>
+                      </Stack>
+
+                      {isExpanded && config && (
+                        <Box>
+                          <Divider />
+                          {/* GL → MMIF Mapping Table */}
+                          <TableContainer>
+                            <Table size="small">
+                              <TableHead>
+                                <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
+                                  <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>Eagle GL</TableCell>
+                                  <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>Source Table</TableCell>
+                                  <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>Source Field</TableCell>
+                                  <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>MMIF Section</TableCell>
+                                  <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>MMIF Field</TableCell>
+                                  <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>Inst. Type</TableCell>
+                                  <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>Code Type</TableCell>
+                                  <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>Sign</TableCell>
+                                  <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>Notes</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                {(config.mappings || []).map((m: any, i: number) => (
+                                  <TableRow key={i} sx={{ '&:last-child td': { borderBottom: 0 } }}>
+                                    <TableCell>
+                                      <Typography variant="body2" fontFamily="monospace" fontSize="0.75rem" fontWeight={600}>
+                                        {m.eagleGlPattern}
+                                      </Typography>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Typography variant="caption">{m.eagleSourceTable}</Typography>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Typography variant="caption">{m.eagleSourceField}</Typography>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Chip label={m.mmifSection} size="small" color="info" variant="outlined" sx={{ fontSize: '0.7rem', fontWeight: 600, height: 22 }} />
+                                    </TableCell>
+                                    <TableCell>
+                                      <Typography variant="caption">{m.mmifField}</Typography>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Typography variant="caption">{m.instrumentType ?? '—'}</Typography>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Typography variant="caption">{m.codeType ?? '—'}</Typography>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Typography variant="caption" fontFamily="monospace">
+                                        {m.signConvention === -1 ? '-1' : '+1'}
+                                      </Typography>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Typography variant="caption" color="text.secondary">{m.notes}</Typography>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </TableContainer>
+
+                          {/* Counterparty Enrichment */}
+                          {config.counterpartyEnrichment && Object.keys(config.counterpartyEnrichment).length > 0 && (
+                            <Box sx={{ px: 2, py: 1.5, bgcolor: alpha(theme.palette.grey[500], 0.04) }}>
+                              <Typography variant="caption" fontWeight={600} sx={{ display: 'block', mb: 0.5 }}>
+                                Counterparty Enrichment
+                              </Typography>
+                              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                {Object.entries(config.counterpartyEnrichment).map(([name, info]: [string, any]) => (
+                                  <Chip
+                                    key={name}
+                                    label={`${name}: ${info.sector} (${info.country})`}
+                                    size="small"
+                                    variant="outlined"
+                                    sx={{ fontSize: '0.7rem', height: 22 }}
+                                  />
+                                ))}
+                              </Stack>
+                            </Box>
+                          )}
+
+                          {/* Investor Classification */}
+                          {config.investorClassification && Object.keys(config.investorClassification).length > 0 && (
+                            <Box sx={{ px: 2, py: 1.5 }}>
+                              <Typography variant="caption" fontWeight={600} sx={{ display: 'block', mb: 0.5 }}>
+                                Investor Classification
+                              </Typography>
+                              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                {Object.entries(config.investorClassification).map(([code, label]: [string, any]) => (
+                                  <Chip
+                                    key={code}
+                                    label={`${code}: ${label}`}
+                                    size="small"
+                                    variant="outlined"
+                                    color="primary"
+                                    sx={{ fontSize: '0.7rem', height: 22 }}
+                                  />
+                                ))}
+                              </Stack>
+                            </Box>
+                          )}
+
+                          {/* Unmapped Accounts Warning */}
+                          {config.unmappedAccounts?.length > 0 && (
+                            <Box sx={{ px: 2, py: 1.5, bgcolor: alpha(theme.palette.warning.main, 0.06) }}>
+                              <Stack direction="row" spacing={0.5} alignItems="center">
+                                <WarningAmberIcon fontSize="small" color="warning" />
+                                <Typography variant="caption" fontWeight={600} color="warning.dark">
+                                  Unmapped GL Accounts: {config.unmappedAccounts.join(', ')}
+                                </Typography>
+                              </Stack>
+                            </Box>
+                          )}
+
+                          {/* Timestamps */}
+                          {config.createdAt && (
+                            <Box sx={{ px: 2, py: 1, borderTop: `1px solid ${theme.palette.divider}` }}>
+                              <Typography variant="caption" color="text.secondary">
+                                Created: {new Date(config.createdAt).toLocaleDateString()} — Updated: {new Date(config.updatedAt).toLocaleDateString()}
+                              </Typography>
+                            </Box>
+                          )}
+                        </Box>
+                      )}
+                    </Paper>
+                  );
+                });
+              })()}
             </Stack>
           </Box>
         )}

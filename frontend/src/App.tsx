@@ -28,6 +28,8 @@ const DataMappingDesigner = lazy(() => import('./pages/DataMapping/DataMappingDe
 // MMIF Regulatory Filing — lazy-loaded
 const MmifDashboard = lazy(() => import('./pages/MmifDashboard/MmifDashboard'));
 const MmifReconciliation = lazy(() => import('./pages/MmifReconciliation/MmifReconciliation'));
+const MmifRuleEditor = lazy(() => import('./pages/MmifRuleEditor/MmifRuleEditor'));
+const MmifMappingEditor = lazy(() => import('./pages/MmifMappingEditor/MmifMappingEditor'));
 
 // Break Resolution & Dashboarding — lazy-loaded
 const ReviewerAllocation = lazy(() => import('./pages/ReviewerAllocation/ReviewerAllocation'));
@@ -93,6 +95,9 @@ function App() {
               <Route path="mmif" element={<ProtectedRoute screen="mmifDashboard"><MmifDashboard /></ProtectedRoute>} />
               <Route path="mmif/:eventId" element={<DrillDownProvider><ProtectedRoute screen="mmifReconciliation"><MmifReconciliation /></ProtectedRoute></DrillDownProvider>} />
               <Route path="mmif/:eventId/funds/:account" element={<DrillDownProvider><ProtectedRoute screen="mmifReconciliation"><MmifReconciliation /></ProtectedRoute></DrillDownProvider>} />
+              <Route path="mmif/:eventId/mapping-template/:fundType" element={<DrillDownProvider><ProtectedRoute screen="mmifReconciliation"><MmifMappingEditor /></ProtectedRoute></DrillDownProvider>} />
+              <Route path="mmif/rules/new" element={<ProtectedRoute screen="mmifDashboard"><MmifRuleEditor /></ProtectedRoute>} />
+              <Route path="mmif/rules/:ruleId" element={<ProtectedRoute screen="mmifDashboard"><MmifRuleEditor /></ProtectedRoute>} />
 
               {/* Preserved routes */}
               <Route path="events/:eventId/runs/:runId" element={<ValidationRunView />} />

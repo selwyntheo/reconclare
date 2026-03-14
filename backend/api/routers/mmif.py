@@ -217,20 +217,299 @@ async def update_mmif_mapping(event_id: str, config: dict):
     return {"status": "updated", "matched": result.matched_count}
 
 
+@router.delete("/events/{event_id}/mapping/{account}")
+async def delete_mmif_mapping(event_id: str, account: str):
+    """Delete a mapping configuration for a specific fund."""
+    db = get_async_db()
+    result = await db[COLLECTIONS["mmifMappingConfigs"]].delete_one(
+        {"eventId": event_id, "account": account}
+    )
+    if result.deleted_count == 0:
+        raise HTTPException(404, "Mapping config not found")
+    return {"status": "deleted"}
+
+
+# ── MMIF Reconciliation Detail ──────────────────────────────
+
+@router.get("/events/{event_id}/reconciliation/{account}")
+async def get_reconciliation_detail(event_id: str, account: str):
+    """Return full reconciliation detail (Accounting vs MMIF side-by-side) for a fund."""
+    db = get_async_db()
+    doc = await db[COLLECTIONS["mmifReconciliationDetails"]].find_one(
+        {"eventId": event_id, "account": account},
+        {"_id": 0},
+    )
+    if doc is None:
+        raise HTTPException(404, f"No reconciliation detail for {account} in {event_id}")
+    return doc
+
+
+@router.get("/events/{event_id}/reconciliation")
+async def list_reconciliation_details(event_id: str):
+    """Return all reconciliation details for an event."""
+    db = get_async_db()
+    cursor = db[COLLECTIONS["mmifReconciliationDetails"]].find(
+        {"eventId": event_id},
+        {"_id": 0},
+    )
+    return await cursor.to_list(length=100)
+
+
+# ── MMIF Mapping Templates ──────────────────────────────────
+
+@router.get("/mapping-templates")
+async def list_mapping_templates():
+    """Return summary of available fund type mapping templates."""
+    from mmif.mapping_templates import list_templates
+    return list_templates()
+
+
+@router.get("/mapping-templates/{fund_type}")
+async def get_mapping_template(fund_type: str):
+    """Return full mapping template for a fund type."""
+    from mmif.mapping_templates import get_mapping_template as _get
+    template = _get(fund_type)
+    if template is None:
+        raise HTTPException(404, f"No template for fund type: {fund_type}")
+    return template
+
+
 # ── MMIF Validation Rules Reference ─────────────────────────
 
 @router.get("/validation-rules")
 async def list_validation_rules():
-    """Return all MMIF validation rule definitions."""
-    from mmif.validation_rules import MMIF_VALIDATION_RULES
-    return MMIF_VALIDATION_RULES
+    """Return all MMIF validation rules (DSL overrides + legacy fallback)."""
+    from mmif.dsl_rule_loader import DslRuleLoader
+    loader = DslRuleLoader()
+    return await loader.load_all_rules()
 
 
 @router.get("/check-suite-options")
 async def list_check_suite_options():
-    """Return check suite options for the UI."""
-    from mmif.validation_rules import MMIF_CHECK_SUITE_OPTIONS
-    return MMIF_CHECK_SUITE_OPTIONS
+    """Return check suite options for the UI (merged DSL + legacy)."""
+    from mmif.dsl_rule_loader import DslRuleLoader
+    loader = DslRuleLoader()
+    rules = await loader.load_all_rules()
+    return [
+        {
+            "value": r["ruleId"],
+            "label": f'{r["ruleId"].replace("_", "-")}: {r["ruleName"]}',
+        }
+        for r in rules
+    ]
+
+
+@router.get("/validation-rules/functions")
+async def list_cel_functions():
+    """Return available CEL functions for the DSL editor."""
+    from services.mapping.cel_evaluator import FUNCTION_DOCS
+    return FUNCTION_DOCS
+
+
+@router.post("/validation-rules/validate-expr")
+async def validate_cel_expression(request: dict):
+    """Validate a CEL expression without saving."""
+    from mmif.dsl_rule_loader import DslRuleLoader
+    expr = request.get("expression", "")
+    is_valid, error = DslRuleLoader.validate_expression(expr)
+    return {"isValid": is_valid, "error": error}
+
+
+@router.post("/validation-rules/ai-suggest")
+async def ai_suggest_rule(request: dict):
+    """Generate a validation rule suggestion from natural language."""
+    from mmif.ai_rule_suggest import MmifRuleSuggester
+
+    prompt = request.get("prompt", "")
+    if not prompt:
+        raise HTTPException(400, "prompt is required")
+
+    suggester = MmifRuleSuggester()
+    try:
+        result = await suggester.suggest_rule(
+            prompt=prompt,
+            data_source=request.get("dataSource"),
+            existing_lhs_expr=request.get("existingLhsExpr"),
+            existing_rhs_expr=request.get("existingRhsExpr"),
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(500, f"AI suggestion failed: {str(e)}")
+
+
+@router.get("/validation-rules/{rule_id}")
+async def get_validation_rule(rule_id: str):
+    """Get a single validation rule by ID."""
+    from mmif.dsl_rule_loader import DslRuleLoader
+    loader = DslRuleLoader()
+    try:
+        rule = await loader.load_rule(rule_id)
+        return rule
+    except ValueError:
+        raise HTTPException(404, f"Rule {rule_id} not found")
+
+
+@router.post("/validation-rules")
+async def create_validation_rule(rule: dict):
+    """Create a new DSL validation rule."""
+    from mmif.dsl_rule_loader import DslRuleLoader
+    db = get_async_db()
+
+    rule_id = rule.get("ruleId")
+    if not rule_id:
+        raise HTTPException(400, "ruleId is required")
+
+    # Validate CEL expressions
+    lhs = rule.get("lhs", {})
+    rhs = rule.get("rhs", {})
+    for side_name, side in [("lhs", lhs), ("rhs", rhs)]:
+        expr = side.get("expr", "")
+        if expr:
+            is_valid, error = DslRuleLoader.validate_expression(expr)
+            if not is_valid:
+                raise HTTPException(400, f"Invalid {side_name} expression: {error}")
+
+    # Check for existing
+    existing = await db[COLLECTIONS["mmifValidationRuleDefs"]].find_one(
+        {"ruleId": rule_id, "deletedAt": None}
+    )
+    if existing:
+        raise HTTPException(409, f"Rule {rule_id} already exists")
+
+    rule["isDsl"] = True
+    rule["version"] = 1
+    rule["isActive"] = rule.get("isActive", True)
+    rule["createdAt"] = datetime.utcnow().isoformat()
+    rule["updatedAt"] = rule["createdAt"]
+    rule["deletedAt"] = None
+
+    await db[COLLECTIONS["mmifValidationRuleDefs"]].insert_one(rule)
+    rule.pop("_id", None)
+    return {"status": "created", "ruleId": rule_id}
+
+
+@router.put("/validation-rules/{rule_id}")
+async def update_validation_rule(rule_id: str, updates: dict):
+    """Update an existing DSL validation rule."""
+    from mmif.dsl_rule_loader import DslRuleLoader
+    db = get_async_db()
+
+    existing = await db[COLLECTIONS["mmifValidationRuleDefs"]].find_one(
+        {"ruleId": rule_id, "deletedAt": None}
+    )
+    if not existing:
+        raise HTTPException(404, f"DSL Rule {rule_id} not found")
+
+    # Validate CEL expressions if provided
+    for side_name in ("lhs", "rhs"):
+        side = updates.get(side_name)
+        if side and side.get("expr"):
+            is_valid, error = DslRuleLoader.validate_expression(side["expr"])
+            if not is_valid:
+                raise HTTPException(400, f"Invalid {side_name} expression: {error}")
+
+    updates.pop("ruleId", None)
+    updates.pop("_id", None)
+    updates["updatedAt"] = datetime.utcnow().isoformat()
+    updates["version"] = existing.get("version", 1) + 1
+
+    await db[COLLECTIONS["mmifValidationRuleDefs"]].update_one(
+        {"ruleId": rule_id, "deletedAt": None},
+        {"$set": updates},
+    )
+    return {"status": "updated", "ruleId": rule_id, "version": updates["version"]}
+
+
+@router.delete("/validation-rules/{rule_id}")
+async def delete_validation_rule(rule_id: str):
+    """Soft delete a DSL validation rule."""
+    db = get_async_db()
+    result = await db[COLLECTIONS["mmifValidationRuleDefs"]].update_one(
+        {"ruleId": rule_id, "deletedAt": None},
+        {"$set": {"deletedAt": datetime.utcnow().isoformat(), "isActive": False}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(404, f"DSL Rule {rule_id} not found")
+    return {"status": "deleted", "ruleId": rule_id}
+
+
+@router.post("/validation-rules/test")
+async def test_dsl_rule(request: dict):
+    """Test a DSL rule against real data without saving."""
+    from services.mapping.cel_evaluator import CelEvaluator, python_to_cel, cel_to_python
+    from mmif.validation_rules import evaluate_rule
+    from db.schemas import MmifSeverity
+
+    db = get_async_db()
+    evaluator = CelEvaluator()
+
+    lhs_expr = request.get("lhsExpr", "0.0")
+    rhs_expr = request.get("rhsExpr", "0.0")
+    data_source = request.get("dataSource", "mmifLedgerData")
+    fund_account = request.get("fundAccount", "")
+    filing_period = request.get("filingPeriod", "")
+    tolerance = float(request.get("tolerance", 0.0))
+    severity_str = request.get("severity", "HARD")
+    lhs_label = request.get("lhsLabel", "LHS")
+    rhs_label = request.get("rhsLabel", "RHS")
+
+    try:
+        collection = COLLECTIONS.get(data_source, data_source)
+        rule_id = request.get("ruleId", "")
+        query: dict = {"account": fund_account, "filingPeriod": filing_period}
+        if data_source == "mmifSampleData" and rule_id:
+            query["ruleId"] = rule_id
+        cursor = db[collection].find(query, {"_id": 0})
+        rows = await cursor.to_list(10000)
+
+        cel_rows = python_to_cel(rows)
+        activation = {
+            "ledger": cel_rows,
+            "sample": cel_rows,
+            "meta": python_to_cel({
+                "account": fund_account,
+                "filingPeriod": filing_period,
+            }),
+        }
+
+        _, lhs_prog = evaluator.compile(lhs_expr)
+        _, rhs_prog = evaluator.compile(rhs_expr)
+
+        lhs_value = float(cel_to_python(lhs_prog.evaluate(activation)))
+        rhs_value = float(cel_to_python(rhs_prog.evaluate(activation)))
+        variance = abs(lhs_value - rhs_value)
+
+        # Determine status
+        severity = MmifSeverity(severity_str)
+        from db.schemas import ValidationResultStatus
+        if variance <= tolerance:
+            status = ValidationResultStatus.PASSED
+        elif severity == MmifSeverity.SOFT:
+            status = ValidationResultStatus.WARNING
+        else:
+            status = ValidationResultStatus.FAILED
+
+        return {
+            "lhsValue": lhs_value,
+            "rhsValue": rhs_value,
+            "variance": variance,
+            "status": status.value,
+            "lhsLabel": lhs_label,
+            "rhsLabel": rhs_label,
+            "rowCount": len(rows),
+            "error": None,
+        }
+    except Exception as e:
+        return {
+            "lhsValue": 0,
+            "rhsValue": 0,
+            "variance": 0,
+            "status": "FAILED",
+            "lhsLabel": lhs_label,
+            "rhsLabel": rhs_label,
+            "rowCount": 0,
+            "error": str(e),
+        }
 
 
 # ── MMIF Agent Analysis Endpoints ─────────────────────────────
